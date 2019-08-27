@@ -177,8 +177,8 @@ def model(hparams, X, past=None, scope='model', reuse=tf.AUTO_REUSE):
 
 
 def combined_model(hparams, X, past=None, scope1='brown_romance', scope2='cornell_supreme', reuse=tf.AUTO_REUSE):
+    results = {}
     with tf.variable_scope(scope1, reuse=reuse):
-        results = {}
         batch1, sequence1 = shape_list(X)
 
         wpe1 = tf.get_variable('wpe', [hparams.n_ctx, hparams.n_embd],
@@ -193,7 +193,7 @@ def combined_model(hparams, X, past=None, scope1='brown_romance', scope2='cornel
         pasts1 = tf.unstack(past, axis=1) if past is not None else [None] * hparams.n_layer
         assert len(pasts1) == hparams.n_layer
         for layer, past in enumerate(pasts1):
-            h1, present1 = block(h1, 'h1%d' % layer, past=past, hparams=hparams)
+            h1, present1 = block(h1, 'h%d' % layer, past=past, hparams=hparams)
             if layer == 10:
                 tf.add_to_collection('checkpoints1', h1)
             presents1.append(present1)
@@ -207,7 +207,6 @@ def combined_model(hparams, X, past=None, scope1='brown_romance', scope2='cornel
         results['logits1'] = logits1
 
     with tf.variable_scope(scope2, reuse=reuse):
-        results = {}
         batch2, sequence2 = shape_list(X)
 
         wpe2 = tf.get_variable('wpe', [hparams.n_ctx, hparams.n_embd],
@@ -219,10 +218,10 @@ def combined_model(hparams, X, past=None, scope1='brown_romance', scope2='cornel
 
         # Transformer
         presents2 = []
-        pasts2 = tf.unstack(past, axis=1) if past is not None else [None] * hparams.n_layer
+        pasts2 = pasts1 #tf.unstack(past, axis=1) if past is not None else [None] * hparams.n_layer
         assert len(pasts2) == hparams.n_layer
         for layer, past in enumerate(pasts2):
-            h2, present2 = block(h2, 'h2%d' % layer, past=past, hparams=hparams)
+            h2, present2 = block(h2, 'h%d' % layer, past=past, hparams=hparams)
             if layer == 10:
                 tf.add_to_collection('checkpoints2', h2)
             presents2.append(present2)
@@ -234,5 +233,6 @@ def combined_model(hparams, X, past=None, scope1='brown_romance', scope2='cornel
         logits2 = tf.matmul(h_flat2, wte2, transpose_b=True)
         logits2 = tf.reshape(logits2, [batch2, sequence2, hparams.n_vocab])
         results['logits2'] = logits2
-
-        return results
+    results['logits'] = tf.math.multiply(logits1, logits2)
+    results['present'] = tf.math.multiply(results['present1'], results['present2'])
+    return results

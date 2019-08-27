@@ -127,18 +127,20 @@ def sample_combined_models(
         np.random.seed(seed)
         tf.set_random_seed(seed)
 
-        output = sample.sample_sequence(
-            hparams=hparams, length=length,
+        output = sample.sample_sequence_combined(
+            hparams=hparams, run_name1=run_name1, run_name2=run_name2,
+            length=length,
             start_token=enc.encoder['<|endoftext|>'],
             batch_size=batch_size,
             temperature=temperature, top_k=top_k, top_p=top_p
         )[:, 1:]
 
-        saver = tf.train.Saver()
+        saver1 = tf.train.Saver([v for v in tf.all_variables() if run_name1 in v.name])
         ckpt1 = tf.train.latest_checkpoint(os.path.join('checkpoint', run_name1))
+        saver1.restore(sess, ckpt1)
+        saver2 = tf.train.Saver([v for v in tf.all_variables() if run_name2 in v.name])
         ckpt2 = tf.train.latest_checkpoint(os.path.join('checkpoint', run_name2))
-        saver.restore(sess, ckpt1)
-        saver.restore(sess, ckpt2)
+        saver2.restore(sess, ckpt2)
 
         generated = 0
         while nsamples == 0 or generated < nsamples:
@@ -181,4 +183,4 @@ def sample_combined_models(
     #                 print(text)
 
 if __name__ == '__main__':
-    fire.Fire(sample_model)
+    fire.Fire(sample_combined_models)
