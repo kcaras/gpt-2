@@ -9,14 +9,14 @@ def produce_brown_files():
         out_f = open('brown_{}.txt'.format(cat), 'w', encoding='utf-8')
         for sent in sents:
             out_line = ' '.join(sent) + '\n'
-            out_line = out_line.replace(' ; ;', '').replace(' ? ?', '?').replace(' ! !', '!').replace('``', '')
+            out_line = out_line.replace(' ; ;', '').replace(' ? ?', '?').replace(' ! !', '!').replace('``', '').replace(' \'\'', '').replace('\'\'', '')
             out_f.write(out_line)
         out_f.close()
 
 
 def read_supreme():
-    supreme = 'gpt-2/supreme.conversations.txt'
-    out_s = open('gpt-2/supreme.txt', 'w', encoding='utf-8')
+    supreme = 'supreme.conversations.txt'
+    out_s = open('supreme.txt', 'w', encoding='utf-8')
     f = open(supreme, 'r', encoding='utf-8')
     lines = f.readlines()
     f.close()
@@ -47,9 +47,11 @@ def combine_files(fname1, fname2):
 
 
 if __name__ == '__main__':
+    #produce_brown_files()
+    read_supreme()
     #combine_files('gpt-2/supreme.txt', 'gpt-2/brown_romance.txt')
-    import gpt_2_simple as gpt2
-
-    model_name = "117M"
-    gpt2.download_gpt2(model_name=model_name)   # model is saved into current directory under /models/117M_Romance_Supreme/
-
+    # import gpt_2_simple as gpt2
+    #
+    # model_name = "117M"
+    # gpt2.download_gpt2(model_name=model_name)   # model is saved into current directory under /models/117M_Romance_Supreme/
+    #

@@ -174,3 +174,65 @@ def model(hparams, X, past=None, scope='model', reuse=tf.AUTO_REUSE):
         logits = tf.reshape(logits, [batch, sequence, hparams.n_vocab])
         results['logits'] = logits
         return results
+
+
+def combined_model(hparams, X, past=None, scope1='brown_romance', scope2='cornell_supreme', reuse=tf.AUTO_REUSE):
+    with tf.variable_scope(scope1, reuse=reuse):
+        results = {}
+        batch1, sequence1 = shape_list(X)
+
+        wpe1 = tf.get_variable('wpe', [hparams.n_ctx, hparams.n_embd],
+                             initializer=tf.random_normal_initializer(stddev=0.01))
+        wte1 = tf.get_variable('wte', [hparams.n_vocab, hparams.n_embd],
+                             initializer=tf.random_normal_initializer(stddev=0.02))
+        past_length1 = 0 if past is None else tf.shape(past)[-2]
+        h1 = tf.gather(wte1, X) + tf.gather(wpe1, positions_for(X, past_length1))
+
+        # Transformer
+        presents1 = []
+        pasts1 = tf.unstack(past, axis=1) if past is not None else [None] * hparams.n_layer
+        assert len(pasts1) == hparams.n_layer
+        for layer, past in enumerate(pasts1):
+            h1, present1 = block(h1, 'h1%d' % layer, past=past, hparams=hparams)
+            if layer == 10:
+                tf.add_to_collection('checkpoints1', h1)
+            presents1.append(present1)
+        results['present1'] = tf.stack(presents1, axis=1)
+        h1 = norm(h1, 'ln_f')
+
+        # Language model loss.  Do tokens <n predict token n?
+        h_flat1 = tf.reshape(h1, [batch1*sequence1, hparams.n_embd])
+        logits1 = tf.matmul(h_flat1, wte1, transpose_b=True)
+        logits1 = tf.reshape(logits1, [batch1, sequence1, hparams.n_vocab])
+        results['logits1'] = logits1
+
+    with tf.variable_scope(scope2, reuse=reuse):
+        results = {}
+        batch2, sequence2 = shape_list(X)
+
+        wpe2 = tf.get_variable('wpe', [hparams.n_ctx, hparams.n_embd],
+                              initializer=tf.random_normal_initializer(stddev=0.01))
+        wte2 = tf.get_variable('wte', [hparams.n_vocab, hparams.n_embd],
+                              initializer=tf.random_normal_initializer(stddev=0.02))
+        past_length2 = 0 if past is None else tf.shape(past)[-2]
+        h2 = tf.gather(wte2, X) + tf.gather(wpe2, positions_for(X, past_length2))
+
+        # Transformer
+        presents2 = []
+        pasts2 = tf.unstack(past, axis=1) if past is not None else [None] * hparams.n_layer
+        assert len(pasts2) == hparams.n_layer
+        for layer, past in enumerate(pasts2):
+            h2, present2 = block(h2, 'h2%d' % layer, past=past, hparams=hparams)
+            if layer == 10:
+                tf.add_to_collection('checkpoints2', h2)
+            presents2.append(present2)
+        results['present2'] = tf.stack(presents2, axis=1)
+        h = norm(h2, 'ln_f')
+
+        # Language model loss.  Do tokens <n predict token n?
+        h_flat2 = tf.reshape(h, [batch2 * sequence2, hparams.n_embd])
+        logits2 = tf.matmul(h_flat2, wte2, transpose_b=True)
+        logits2 = tf.reshape(logits2, [batch2, sequence2, hparams.n_vocab])
+        results['logits2'] = logits2
+
+        return results
