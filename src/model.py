@@ -176,7 +176,7 @@ def model(hparams, X, past=None, scope='model', reuse=tf.AUTO_REUSE):
         return results
 
 
-def combined_model(hparams, X, past=None, scope1='brown_romance', scope2='cornell_supreme', reuse=tf.AUTO_REUSE):
+def combined_model(hparams, X, past=None, scope1='brown_romance', scope2='cornell_supreme', reuse=tf.AUTO_REUSE, weight1=0.5, weight2=0.5):
     results = {}
     with tf.variable_scope(scope1, reuse=reuse):
         batch1, sequence1 = shape_list(X)
@@ -198,13 +198,14 @@ def combined_model(hparams, X, past=None, scope1='brown_romance', scope2='cornel
                 tf.add_to_collection('checkpoints1', h1)
             presents1.append(present1)
         results['present1'] = tf.stack(presents1, axis=1)
+        results['present1'] *= weight1
         h1 = norm(h1, 'ln_f')
 
         # Language model loss.  Do tokens <n predict token n?
         h_flat1 = tf.reshape(h1, [batch1*sequence1, hparams.n_embd])
         logits1 = tf.matmul(h_flat1, wte1, transpose_b=True)
         logits1 = tf.reshape(logits1, [batch1, sequence1, hparams.n_vocab])
-        results['logits1'] = logits1
+        results['logits1'] = logits1*weight1
 
     with tf.variable_scope(scope2, reuse=reuse):
         batch2, sequence2 = shape_list(X)
@@ -226,13 +227,14 @@ def combined_model(hparams, X, past=None, scope1='brown_romance', scope2='cornel
                 tf.add_to_collection('checkpoints2', h2)
             presents2.append(present2)
         results['present2'] = tf.stack(presents2, axis=1)
+        results['present2'] *= weight2
         h = norm(h2, 'ln_f')
 
         # Language model loss.  Do tokens <n predict token n?
         h_flat2 = tf.reshape(h, [batch2 * sequence2, hparams.n_embd])
         logits2 = tf.matmul(h_flat2, wte2, transpose_b=True)
         logits2 = tf.reshape(logits2, [batch2, sequence2, hparams.n_vocab])
-        results['logits2'] = logits2
-    results['logits'] = tf.math.multiply(logits1, logits2)
-    results['present'] = tf.math.multiply(results['present1'], results['present2'])
+        results['logits2'] = logits2*weight2
+    results['logits'] = logits1 + logits2
+    results['present'] = results['present1'] + results['present2']
     return results
