@@ -82,9 +82,9 @@ def sample_combined_models(
     nsamples=0,
     batch_size=1,
     length=None,
-    temperature=1,
-    top_k=0,
-    top_p=0.0
+    temperature=2,
+    top_k=40,
+    top_p=0.9
 ):
     """
     Run the sample_model
