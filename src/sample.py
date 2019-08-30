@@ -1,6 +1,11 @@
 import tensorflow as tf
+import random
 
 import model
+
+w1 = 1.0
+w2 = 0.0
+
 
 def top_k_logits(logits, k):
     if k == 0:
@@ -45,7 +50,6 @@ def sample_sequence(*, hparams, length, start_token=None, batch_size=None, conte
 
     def step(hparams, tokens, past=None):
         lm_output = model.model(hparams=hparams, X=tokens, past=past, reuse=tf.AUTO_REUSE)
-
         logits = lm_output['logits'][:, :, :hparams.n_vocab]
         presents = lm_output['present']
         presents.set_shape(model.past_shape(hparams=hparams, batch_size=batch_size))
@@ -96,16 +100,22 @@ def sample_sequence(*, hparams, length, start_token=None, batch_size=None, conte
         return tokens
 
 
-def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', start_token=None, batch_size=None, context=None, temperature=1, top_k=0, top_p=0.0):
+def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', start_token=None, batch_size=None, context=None, temperature=1, top_k=0, top_p=0.0, weight1=0.5, weight2=0.5, use_random=True, use_swap=False, use_f1=False, inc=True):
+    # if weight1 >= 1.0:
+    #     inc = False
+    global w1
+    global w2
+    w1 = weight1
+    w2 = weight2
+
     if start_token is None:
         assert context is not None, 'Specify exactly one of start_token and context!'
     else:
         assert context is None, 'Specify exactly one of start_token and context!'
         context = tf.fill([batch_size, 1], start_token)
 
-    def step(hparams, tokens, past=None):
-        lm_output = model.combined_model(hparams=hparams, scope1=run_name1, scope2=run_name2, X=tokens, past=past, reuse=tf.AUTO_REUSE)
-
+    def step(hparams, tokens, past=None, w1=weight1, w2=weight2):
+        lm_output = model.combined_model(hparams=hparams, scope1=run_name1, scope2=run_name2, X=tokens, past=past, reuse=tf.AUTO_REUSE, weight1=w1, weight2=w2)
         logits = lm_output['logits'][:, :, :hparams.n_vocab]
         presents = lm_output['present']
         presents.set_shape(model.past_shape(hparams=hparams, batch_size=batch_size))
@@ -121,8 +131,17 @@ def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', sta
         context_output = step(hparams, context[:, :-1])
 
         def body(past, prev, output):
-            next_outputs = step(hparams, prev[:, tf.newaxis], past=past)
-            logits = next_outputs['logits'][:, -1, :]  / tf.to_float(temperature)
+            global w1
+            global w2
+            if use_random:
+                w1 = weight_random()
+                w2 = 1 - w1
+            elif use_swap:
+                w1 = weight_swap(w1)
+                w2 = 1 - w1
+                # print("**" + str(w1))
+            next_outputs = step(hparams, prev[:, tf.newaxis], past=past, w1=w1, w2=w2)
+            logits = next_outputs['logits'][:, -1, :] / tf.to_float(temperature)
             if top_p > 0.0:
                 logits = top_p_logits(logits, p=top_p)
             else:
@@ -154,3 +173,22 @@ def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', sta
         )
 
         return tokens
+
+
+def weight_random():
+    w1 = random.uniform(0, 1)
+    return w1
+
+
+def weight_swap(weight1):
+    return 1 - weight1
+
+
+def weight_function1(weight1, inc):
+    if weight1 == 1.0:
+        w1 = weight1 - 0.1
+    elif inc:
+        w1 = weight1 + 0.1 if weight1 + 0.1 < 1.0 else 1.0
+    else:
+        w1 = weight1 - 0.1 if weight1-0.1 > 0 else 0
+    return w1

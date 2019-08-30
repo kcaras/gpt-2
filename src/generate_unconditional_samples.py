@@ -76,15 +76,19 @@ def sample_model(
 
 def sample_combined_models(
     model_name='117M',
-    run_name1='brown_romance',
+    run_name1='brown_humor',
     run_name2='cornell_supreme',
     seed=None,
-    nsamples=0,
+    nsamples=15,
     batch_size=1,
-    length=None,
+    length=400,
     temperature=2,
     top_k=40,
-    top_p=0.9
+    top_p=0.0,
+    weight1=0.3,
+    weight2=0.7,
+    use_random=False,
+    use_swap=True
 ):
     """
     Run the sample_model
@@ -122,7 +126,6 @@ def sample_combined_models(
     # with tf.variable_scope(run_name2):
     #     fr_en_model = create_model(...)
 
-
     with tf.Session(graph=tf.Graph()) as sess:
         np.random.seed(seed)
         tf.set_random_seed(seed)
@@ -132,7 +135,13 @@ def sample_combined_models(
             length=length,
             start_token=enc.encoder['<|endoftext|>'],
             batch_size=batch_size,
-            temperature=temperature, top_k=top_k, top_p=top_p
+            temperature=temperature,
+            top_k=top_k,
+            top_p=top_p,
+            weight1=weight1,
+            weight2=weight2,
+            use_random=use_random,
+            use_swap=use_swap
         )[:, 1:]
 
         saver1 = tf.train.Saver([v for v in tf.all_variables() if run_name1 in v.name])
@@ -141,15 +150,32 @@ def sample_combined_models(
         saver2 = tf.train.Saver([v for v in tf.all_variables() if run_name2 in v.name])
         ckpt2 = tf.train.latest_checkpoint(os.path.join('checkpoint', run_name2))
         saver2.restore(sess, ckpt2)
-
+        if use_random:
+            out_file = 'samples/{}_{}/random_weights/rand_temp_{}_len_{}_p_{}_k_{}_w1_{}_w2_{}.txt'.format(run_name1, run_name2, temperature, str(length),
+                                                                                top_p, top_k, weight1, weight2)
+        elif use_swap:
+            out_file = 'samples/{}_{}/swap_weights/swap_temp_{}_len_{}_p_{}_k_{}_w1_{}_w2_{}.txt'.format(run_name1,
+                                                                                                           run_name2,
+                                                                                                           temperature,
+                                                                                                           str(length),
+                                                                                                           top_p, top_k,
+                                                                                                           weight1,
+                                                                                                           weight2)
+        else:
+            out_file = 'samples/{}_{}/static_weights/temp_{}_len_{}_p_{}_k_{}_w1_{}_w2_{}.txt'.format(run_name1, run_name2,temperature, str(length), top_p, top_k, weight1, weight2)
+        f = open(out_file, 'w', encoding='utf-8')
         generated = 0
         while nsamples == 0 or generated < nsamples:
             out = sess.run(output)
             for i in range(batch_size):
                 generated += batch_size
-                text = enc.decode(out[i])
-                print("=" * 40 + " SAMPLE " + str(generated) + " " + "=" * 40)
+                text = enc.decode(out[i])                 
+                sample_str = '\n' + "=" * 40 + " SAMPLE " + str(generated) + " " + "=" * 40 + '\n'
+                f.write(sample_str)
+                f.write(text)
+                print(sample_str)
                 print(text)
+        f.close()
 
     # with tf.Session(graph=tf.Graph()) as sess1:
     #     np.random.seed(seed)

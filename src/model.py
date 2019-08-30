@@ -176,7 +176,7 @@ def model(hparams, X, past=None, scope='model', reuse=tf.AUTO_REUSE):
         return results
 
 
-def combined_model(hparams, X, past=None, scope1='brown_romance', scope2='cornell_supreme', reuse=tf.AUTO_REUSE, weight1=0.5, weight2=0.5):
+def combined_model(hparams, X, past=None, scope1='brown_romance', scope2='cornell_supreme', reuse=tf.AUTO_REUSE, weight1=0.6, weight2=0.4):
     results = {}
     with tf.variable_scope(scope1, reuse=reuse):
         batch1, sequence1 = shape_list(X)
@@ -228,10 +228,10 @@ def combined_model(hparams, X, past=None, scope1='brown_romance', scope2='cornel
             presents2.append(present2)
         results['present2'] = tf.stack(presents2, axis=1)
         results['present2'] *= weight2
-        h = norm(h2, 'ln_f')
+        h2 = norm(h2, 'ln_f')
 
         # Language model loss.  Do tokens <n predict token n?
-        h_flat2 = tf.reshape(h, [batch2 * sequence2, hparams.n_embd])
+        h_flat2 = tf.reshape(h2, [batch2 * sequence2, hparams.n_embd])
         logits2 = tf.matmul(h_flat2, wte2, transpose_b=True)
         logits2 = tf.reshape(logits2, [batch2, sequence2, hparams.n_vocab])
         results['logits2'] = logits2*weight2
