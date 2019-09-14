@@ -176,7 +176,7 @@ def model(hparams, X, past=None, scope='model', reuse=tf.AUTO_REUSE):
         return results
 
 
-def combined_model(hparams, X, past=None, scope1='brown_romance', scope2='cornell_supreme', reuse=tf.AUTO_REUSE, weight1=0.6, weight2=0.4):
+def combined_model(hparams, X, past1=None, past2=None, scope1='brown_romance', scope2='cornell_supreme', reuse=tf.AUTO_REUSE, weight1=0.6, weight2=0.4):
     results = {}
     with tf.variable_scope(scope1, reuse=reuse):
         batch1, sequence1 = shape_list(X)
@@ -185,12 +185,12 @@ def combined_model(hparams, X, past=None, scope1='brown_romance', scope2='cornel
                              initializer=tf.random_normal_initializer(stddev=0.01))
         wte1 = tf.get_variable('wte', [hparams.n_vocab, hparams.n_embd],
                              initializer=tf.random_normal_initializer(stddev=0.02))
-        past_length1 = 0 if past is None else tf.shape(past)[-2]
+        past_length1 = 0 if past1 is None else tf.shape(past1)[-2]
         h1 = tf.gather(wte1, X) + tf.gather(wpe1, positions_for(X, past_length1))
 
         # Transformer
         presents1 = []
-        pasts1 = tf.unstack(past, axis=1) if past is not None else [None] * hparams.n_layer
+        pasts1 = tf.unstack(past1, axis=1) if past1 is not None else [None] * hparams.n_layer
         assert len(pasts1) == hparams.n_layer
         for layer, past in enumerate(pasts1):
             h1, present1 = block(h1, 'h%d' % layer, past=past, hparams=hparams)
@@ -198,14 +198,18 @@ def combined_model(hparams, X, past=None, scope1='brown_romance', scope2='cornel
                 tf.add_to_collection('checkpoints1', h1)
             presents1.append(present1)
         results['present1'] = tf.stack(presents1, axis=1)
-        results['present1'] *= weight1
+        #results['present1'] = tf.math.log(tf.math.exp(results['present1'])*weight1)
         h1 = norm(h1, 'ln_f')
 
         # Language model loss.  Do tokens <n predict token n?
         h_flat1 = tf.reshape(h1, [batch1*sequence1, hparams.n_embd])
         logits1 = tf.matmul(h_flat1, wte1, transpose_b=True)
         logits1 = tf.reshape(logits1, [batch1, sequence1, hparams.n_vocab])
-        results['logits1'] = logits1*weight1
+        results['logits1'] = logits1
+        # print('********************************************\n')
+        # tf.print(results['logits1'], [results['logits1']])
+        # print('<!>!<!>!<>!<!>!<!>AFTER<!>!<!>!<>!<!>!<!>\n')
+        #results['logits1'] = tf.math.log(tf.math.exp(logits1)*weight1)
 
     with tf.variable_scope(scope2, reuse=reuse):
         batch2, sequence2 = shape_list(X)
@@ -214,12 +218,12 @@ def combined_model(hparams, X, past=None, scope1='brown_romance', scope2='cornel
                               initializer=tf.random_normal_initializer(stddev=0.01))
         wte2 = tf.get_variable('wte', [hparams.n_vocab, hparams.n_embd],
                               initializer=tf.random_normal_initializer(stddev=0.02))
-        past_length2 = 0 if past is None else tf.shape(past)[-2]
+        past_length2 = 0 if past2 is None else tf.shape(past2)[-2]
         h2 = tf.gather(wte2, X) + tf.gather(wpe2, positions_for(X, past_length2))
 
         # Transformer
         presents2 = []
-        pasts2 = pasts1 #tf.unstack(past, axis=1) if past is not None else [None] * hparams.n_layer
+        pasts2 = tf.unstack(past2, axis=1) if past2 is not None else [None] * hparams.n_layer
         assert len(pasts2) == hparams.n_layer
         for layer, past in enumerate(pasts2):
             h2, present2 = block(h2, 'h%d' % layer, past=past, hparams=hparams)
@@ -227,14 +231,19 @@ def combined_model(hparams, X, past=None, scope1='brown_romance', scope2='cornel
                 tf.add_to_collection('checkpoints2', h2)
             presents2.append(present2)
         results['present2'] = tf.stack(presents2, axis=1)
-        results['present2'] *= weight2
+        #results['present2'] = tf.math.log(tf.math.exp(results['present2'])*weight2)
         h2 = norm(h2, 'ln_f')
 
         # Language model loss.  Do tokens <n predict token n?
         h_flat2 = tf.reshape(h2, [batch2 * sequence2, hparams.n_embd])
         logits2 = tf.matmul(h_flat2, wte2, transpose_b=True)
         logits2 = tf.reshape(logits2, [batch2, sequence2, hparams.n_vocab])
-        results['logits2'] = logits2*weight2
-    results['logits'] = logits1 + logits2
-    results['present'] = results['present1'] + results['present2']
+        results['logits2'] = logits2
+        #results['logits2'] = tf.math.log(tf.math.exp(logits2)*weight2)
+    results['logits'] = tf.nn.softmax(results['logits1'])*weight1 + tf.nn.softmax(results['logits2'])*weight2
+    #results['present'] = tf.nn.softmax(results['present1'])*weight1 + tf.nn.softmax(results['present2'])*weight2
+    #results['logits'] = logits1 #+ logits2
+    #results['present'] = results['present1'] #+ results['present2']
+    #results['logits'] = tf.math.log_prob(tf.math.exp(results['logits1'])*weight1 + tf.math.exp(results['logits2'])*weight2 + tf.math.exp(0.00000001))
+    #results['present'] = tf.math.log(tf.math.exp(results['present1'])*weight1 + tf.math.exp(results['present2'])*weight2 + tf.math.exp(0.00000001))
     return results

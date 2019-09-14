@@ -1,11 +1,13 @@
 import tensorflow as tf
 import random
 
-import model
+import model, encoder
+import os, json
+
 
 w1 = 1.0
 w2 = 0.0
-
+inc = True
 
 def top_k_logits(logits, k):
     if k == 0:
@@ -40,6 +42,65 @@ def top_p_logits(logits, p):
             logits,
         )
 
+# def top_k_logits_combined(logits1, logits2, k):
+#     logits =
+#     if k == 0:
+#         # no truncation
+#         return logits
+#
+#     def _top_k():
+#         values, _ = tf.nn.top_k(logits, k=k)
+#         min_values = values[:, -1, tf.newaxis]
+#         return tf.where(
+#             logits < min_values,
+#             tf.ones_like(logits, dtype=logits.dtype) * -1e10,
+#             logits,
+#         )
+#     return tf.cond(
+#        tf.equal(k, 0),
+#        lambda: logits,
+#        lambda: _top_k(),
+#     )
+#
+def top_p_logits_combined(next_outputs, temperature, p):
+    with tf.variable_scope('top_p_logits'):
+        # logits_sort = tf.sort(logits, direction='DESCENDING')
+        # probs_sort = tf.nn.softmax(logits_sort)
+        # probs_sums = tf.cumsum(probs_sort, axis=1, exclusive=True)
+        # logits_masked = tf.where(probs_sums < p, logits_sort, tf.ones_like(logits_sort) * 1000)  # [batchsize, vocab]
+        # min_logits = tf.reduce_min(logits_masked, axis=1, keepdims=True)  # [batchsize, 1]
+
+        #logits = tf.nn.softmax(next_outputs['logits1']) * w1 + tf.nn.softmax(next_outputs['logits2']) * w2
+        logits1 = next_outputs['logits1'][:, -1, :] / tf.to_float(temperature)
+        logits2 = next_outputs['logits2'][:, -1, :] / tf.to_float(temperature)
+        logits_sort1 = tf.sort(logits1, direction='DESCENDING')
+        logits_sort2 = tf.sort(logits2, direction='DESCENDING')
+
+        probs_sort1 = tf.nn.softmax(logits_sort1)
+        probs_sort2 = tf.nn.softmax(logits_sort2)
+
+        probs_sums1 = tf.cumsum(probs_sort1, axis=1, exclusive=True)
+        probs_sums2 = tf.cumsum(probs_sort2, axis=1, exclusive=True)
+
+        logits_masked1 = tf.where(probs_sums1 < p, logits_sort1, tf.ones_like(logits_sort1)*1000) # [batchsize, vocab]
+        logits_masked2 = tf.where(probs_sums2 < p, logits_sort2, tf.ones_like(logits_sort2)*1000) # [batchsize, vocab]
+
+        min_logits1 = tf.reduce_min(logits_masked1, axis=1, keepdims=True) # [batchsize, 1]
+        min_logits2 = tf.reduce_min(logits_masked2, axis=1, keepdims=True) # [batchsize, 1]
+
+        res1 = tf.where(
+            logits1 < min_logits1,
+            tf.ones_like(logits1, dtype=logits1.dtype) * -1e10,
+            logits1,
+        )
+
+        res2 = tf.where(
+            logits2 < min_logits2,
+            tf.ones_like(logits2, dtype=logits2.dtype) * -1e10,
+            logits2,
+        )
+        return res1*w1 + res2*w2
+
 
 def sample_sequence(*, hparams, length, start_token=None, batch_size=None, context=None, temperature=1, top_k=0, top_p=0.0):
     if start_token is None:
@@ -66,9 +127,9 @@ def sample_sequence(*, hparams, length, start_token=None, batch_size=None, conte
 
         def body(past, prev, output):
             next_outputs = step(hparams, prev[:, tf.newaxis], past=past)
-            logits = next_outputs['logits'][:, -1, :]  / tf.to_float(temperature)
+            logits = next_outputs['logits'][:, -1, :] / tf.to_float(temperature)
             if top_p > 0.0:
-                logits = top_p_logits(logits, p=top_p)
+                logits = top_p_logits(logits, temperature, p=top_p)
             else:
                 logits = top_k_logits(logits, k=top_k)
             samples = tf.multinomial(logits, num_samples=1, output_dtype=tf.int32)
@@ -114,6 +175,97 @@ def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', sta
         assert context is None, 'Specify exactly one of start_token and context!'
         context = tf.fill([batch_size, 1], start_token)
 
+    def step(hparams, tokens, past1=None, past2=None, w1=weight1, w2=weight2):
+        lm_output = model.combined_model(hparams=hparams, scope1=run_name1, scope2=run_name2, X=tokens, past1=past1, past2=past2, reuse=tf.AUTO_REUSE, weight1=w1, weight2=w2)
+        logits = lm_output['logits'][:, :, :hparams.n_vocab]
+        presents1 = lm_output['present1']
+        presents1.set_shape(model.past_shape(hparams=hparams, batch_size=batch_size))
+        presents2 = lm_output['present2']
+        presents2.set_shape(model.past_shape(hparams=hparams, batch_size=batch_size))
+        return {
+            'logits': logits,
+            'logits1': lm_output['logits1'],
+            'logits2': lm_output['logits2'],
+            'presents1': presents1,
+            'presents2': presents2,
+        }
+
+    with tf.name_scope('sample_sequence'):
+        # Don't feed the last context token -- leave that to the loop below
+        # TODO: Would be slightly faster if we called step on the entire context,
+        # rather than leaving the last token transformer calculation to the while loop.
+        context_output = step(hparams, context[:, :-1])
+
+        def body(past1, past2, prev, output):
+            global w1
+            global w2
+            global inc
+            if use_random:
+                w1 = weight_random()
+                w2 = 1 - w1
+            elif use_swap:
+                w1 = weight_swap(w1)
+                w2 = 1 - w1
+            elif use_f1:
+                global inc
+                if w1 == 1.0:
+                    inc = False
+                if w1 == 0.0:
+                    inc = True
+                weight_function1(w1, inc)
+                # print("**" + str(w1))
+            next_outputs = step(hparams, prev[:, tf.newaxis], past1=past1, past2=past2, w1=w1, w2=w2)
+            logits = next_outputs['logits'][:, -1, :] / tf.to_float(temperature)
+            if top_p > 0.0:
+                logits = top_p_logits_combined(next_outputs, temperature, p=top_p)
+            else:
+                logits = top_k_logits(logits, k=top_k)
+            samples = tf.multinomial(logits, num_samples=1, output_dtype=tf.int32)
+            return [
+                tf.concat([past1, next_outputs['presents1']], axis=-2),
+                tf.concat([past2, next_outputs['presents2']], axis=-2),
+                tf.squeeze(samples, axis=[1]),
+                tf.concat([output, samples], axis=1),
+            ]
+
+        def cond(*args):
+            return True
+
+        _, _, _, tokens = tf.while_loop(
+            cond=cond, body=body,
+            maximum_iterations=length,
+            loop_vars=[
+                context_output['presents1'],
+                context_output['presents2'],
+                context[:, -1],
+                context,
+            ],
+            shape_invariants=[
+                tf.TensorShape(model.past_shape(hparams=hparams, batch_size=batch_size)),
+                tf.TensorShape(model.past_shape(hparams=hparams, batch_size=batch_size)),
+                tf.TensorShape([batch_size]),
+                tf.TensorShape([batch_size, None]),
+            ],
+            back_prop=False,
+        )
+
+        return tokens
+
+
+def return_logits(*, hparams, length, run_name1='', run_name2='', start_token=None, batch_size=None, context=None, temperature=1, top_k=0, top_p=0.0, weight1=0.5, weight2=0.5, use_random=True, use_swap=False, use_f1=False, inc=True):
+    # if weight1 >= 1.0:
+    #     inc = False
+    global w1
+    global w2
+    w1 = weight1
+    w2 = weight2
+
+    if start_token is None:
+        assert context is not None, 'Specify exactly one of start_token and context!'
+    else:
+        assert context is None, 'Specify exactly one of start_token and context!'
+        context = tf.fill([batch_size, 1], start_token)
+
     def step(hparams, tokens, past=None, w1=weight1, w2=weight2):
         lm_output = model.combined_model(hparams=hparams, scope1=run_name1, scope2=run_name2, X=tokens, past=past, reuse=tf.AUTO_REUSE, weight1=w1, weight2=w2)
         logits = lm_output['logits'][:, :, :hparams.n_vocab]
@@ -141,38 +293,35 @@ def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', sta
                 w2 = 1 - w1
                 # print("**" + str(w1))
             next_outputs = step(hparams, prev[:, tf.newaxis], past=past, w1=w1, w2=w2)
-            logits = next_outputs['logits'][:, -1, :] / tf.to_float(temperature)
-            if top_p > 0.0:
-                logits = top_p_logits(logits, p=top_p)
-            else:
-                logits = top_k_logits(logits, k=top_k)
-            samples = tf.multinomial(logits, num_samples=1, output_dtype=tf.int32)
+            #logits = next_outputs['logits'][:, -1, :] / tf.to_float(temperature)
+            # if top_p > 0.0:
+            #     logits = top_p_logits(logits, p=top_p)
+            # else:
+            #     logits = top_k_logits(logits, k=top_k)
+            # samples = tf.multinomial(logits, num_samples=1, output_dtype=tf.int32)
             return [
-                tf.concat([past, next_outputs['presents']], axis=-2),
-                tf.squeeze(samples, axis=[1]),
-                tf.concat([output, samples], axis=1),
+                next_outputs['logits']
             ]
 
         def cond(*args):
             return True
-
-        _, _, tokens = tf.while_loop(
-            cond=cond, body=body,
-            maximum_iterations=length,
-            loop_vars=[
-                context_output['presents'],
-                context[:, -1],
-                context,
-            ],
-            shape_invariants=[
-                tf.TensorShape(model.past_shape(hparams=hparams, batch_size=batch_size)),
-                tf.TensorShape([batch_size]),
-                tf.TensorShape([batch_size, None]),
-            ],
-            back_prop=False,
-        )
-
-        return tokens
+        out = body(context_output['presents'], context[:, -1], context)
+        # _, _, tokens = tf.while_loop(
+        #     cond=cond, body=body,
+        #     maximum_iterations=length,
+        #     loop_vars=[
+        #         context_output['presents'],
+        #         context[:, -1],
+        #         context,
+        #     ],
+        #     shape_invariants=[
+        #         tf.TensorShape(model.past_shape(hparams=hparams, batch_size=batch_size)),
+        #         tf.TensorShape([batch_size]),
+        #         tf.TensorShape([batch_size, None]),
+        #     ],
+        #     back_prop=False,
+        # )
+        return out
 
 
 def weight_random():
@@ -184,11 +333,50 @@ def weight_swap(weight1):
     return 1 - weight1
 
 
-def weight_function1(weight1, inc):
+def weight_function1(weight1, incr):
     if weight1 == 1.0:
         w1 = weight1 - 0.1
-    elif inc:
+    elif incr:
         w1 = weight1 + 0.1 if weight1 + 0.1 < 1.0 else 1.0
     else:
         w1 = weight1 - 0.1 if weight1-0.1 > 0 else 0
     return w1
+
+
+# if __name__ == '__main__':
+#     model_name = '117M'
+#     run_name1 = 'brown_romance'
+#     run_name2 = 'cornell_supreme'
+#     seed = None
+#     nsamples = 15
+#     batch_size = 1
+#     length = None
+#     temperature = 2
+#     top_k = 40
+#     top_p = 0.0
+#     weight1 = 0.5
+#     weight2 = 0.5
+#     use_random = False
+#     use_swap = False
+#     enc = encoder.get_encoder(model_name)
+#     hparams = model.default_hparams()
+#     with open(os.path.join('models', model_name, 'hparams.json')) as f:
+#         hparams.override_from_dict(json.load(f))
+#
+#     if length is None:
+#         length = hparams.n_ctx
+#     elif length > hparams.n_ctx:
+#         raise ValueError("Can't get samples longer than window size: %s" % hparams.n_ctx)
+#     output = sample_sequence_combined_test(
+#         hparams=hparams, run_name1=run_name1, run_name2=run_name2,
+#         length=length,
+#         start_token=enc.encoder['<|endoftext|>'],
+#         batch_size=batch_size,
+#         temperature=temperature,
+#         top_k=top_k,
+#         top_p=top_p,
+#         weight1=weight1,
+#         weight2=weight2,
+#         use_random=use_random,
+#         use_swap=use_swap
+#     )[:, 1:]

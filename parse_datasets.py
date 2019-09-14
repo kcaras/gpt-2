@@ -1,6 +1,7 @@
 from nltk.corpus import brown
 import random
-import os
+import os, csv
+
 
 def produce_brown_files():
     cats = ['romance', 'humor', 'government']
@@ -14,10 +15,37 @@ def produce_brown_files():
         out_f.close()
 
 
+def produce_shakespere():
+    out_lines = []
+    with open('Shakespeare_data.csv', 'r', encoding='utf-8') as csv_file:
+        csv_reader = csv.reader(csv_file)
+        for i, row in enumerate(csv_reader):
+            if i > 0:
+                out_lines.append(row[-1])
+    out_file = 'shakespere.txt'
+    of = open(out_file, 'w', encoding='utf-8')
+    of.write('\n'.join(out_lines))
+    of.close()
+
+
 def read_supreme():
     supreme = 'supreme.conversations.txt'
     out_s = open('supreme.txt', 'w', encoding='utf-8')
     f = open(supreme, 'r', encoding='utf-8')
+    lines = f.readlines()
+    f.close()
+    print("Num Lines: {}".format(len(lines)))
+    for line in lines:
+        split = line.split('+++$+++')
+        out_line = split[-1]
+        out_s.write(out_line)
+    out_s.close()
+
+
+def read_movies():
+    movies = 'movie_lines.txt'
+    out_s = open('movies.txt', 'w', encoding='utf-8')
+    f = open(movies, 'r', encoding='utf-8',errors='ignore')
     lines = f.readlines()
     f.close()
     print("Num Lines: {}".format(len(lines)))
@@ -44,14 +72,22 @@ def combine_files(fname1, fname2):
         f3.write(line)
     f3.close()
 
-
+def clean_reddit_jokes():
+    f = open('reddit_jokes.txt', 'r', encoding='utf-8')
+    lines = f.read()
+    f.close()
+    new_lines = lines.replace('===', '')
+    f_new = open('reddit_jokes.txt', 'w', encoding='utf-8')
+    f_new.write(new_lines)
+    f_new.close()
 
 if __name__ == '__main__':
     #produce_brown_files()
-    read_supreme()
+    #read_movies()
     #combine_files('gpt-2/supreme.txt', 'gpt-2/brown_romance.txt')
     # import gpt_2_simple as gpt2
     #
-    # model_name = "117M"
+    # model_name = "355M"
     # gpt2.download_gpt2(model_name=model_name)   # model is saved into current directory under /models/117M_Romance_Supreme/
-    #
+    #clean_reddit_jokes()
+    produce_shakespere()
