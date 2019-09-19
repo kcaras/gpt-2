@@ -3,6 +3,25 @@ import random
 import os, csv
 
 
+def create_change_var():
+    f = open('/media/twister/04dc1255-e775-4227-9673-cea8d37872c7/humor_gen/caras_humor/gpt-2/trained_vars.txt', 'r', encoding='utf-8')
+    lines = f.readlines()
+    f.close()
+    new_f = open('trained_vars_scopes.txt', 'w', encoding='utf-8')
+    for line in lines:
+        split = line.split(' ')
+        if '*' not in line:
+            #'\\'{}/wpe:0\\''
+            var_scope = split[1].replace('\'', '').replace(':0', '')
+            i = 3
+            var_shape = split[2]
+            while 'dtype' not in split[i]:
+                var_shape += split[i]
+                i += 1
+            var_shape = var_shape.replace('shape=', '')
+            new_f.write(var_scope + ' ' + var_shape + '\n')
+    new_f.close()
+
 def produce_brown_files():
     cats = ['romance', 'humor', 'government']
     for cat in cats:
@@ -90,4 +109,5 @@ if __name__ == '__main__':
     # model_name = "355M"
     # gpt2.download_gpt2(model_name=model_name)   # model is saved into current directory under /models/117M_Romance_Supreme/
     #clean_reddit_jokes()
-    produce_shakespere()
+    #produce_shakespere()
+    create_change_var()
