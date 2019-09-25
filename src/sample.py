@@ -5,8 +5,9 @@ import model, encoder
 import os, json
 
 
-w1 = 1.0
-w2 = 0.0
+w1 = 0.5
+w2 = 0.5
+change = 0
 inc = True
 
 def top_k_logits(logits, k):
@@ -161,22 +162,23 @@ def sample_sequence(*, hparams, length, start_token=None, batch_size=None, conte
         return tokens
 
 
-def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', start_token=None, batch_size=None, context=None, temperature=1, top_k=0, top_p=0.0, weight1=0.5, weight2=0.5, use_random=True, use_swap=False, use_f1=False, inc=True):
+def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', start_token=None, batch_size=None, context=None, temperature=1, top_k=0, top_p=0.0, weight1=0.5, weight2=0.5, use_random=False, use_swap=False, use_f1=False, inc=False, use_fifty_one=True):
     # if weight1 >= 1.0:
     #     inc = False
     global w1
     global w2
     w1 = weight1
     w2 = weight2
-
+    write_lines = []
+    write_lines.append('\n\n I STARTED THE SAMPLE \n\n')
     if start_token is None:
         assert context is not None, 'Specify exactly one of start_token and context!'
     else:
         assert context is None, 'Specify exactly one of start_token and context!'
         context = tf.fill([batch_size, 1], start_token)
 
-    def step(hparams, tokens, past1=None, past2=None, w1=weight1, w2=weight2):
-        lm_output = model.combined_model(hparams=hparams, scope1=run_name1, scope2=run_name2, X=tokens, past1=past1, past2=past2, reuse=tf.AUTO_REUSE, weight1=w1, weight2=w2)
+    def step(hparams, tokens, past1=None, past2=None, we1=weight1, we2=weight2):
+        lm_output = model.combined_model(hparams=hparams, scope1=run_name1, scope2=run_name2, X=tokens, past1=past1, past2=past2, reuse=tf.AUTO_REUSE, weight1=we1, weight2=we2)
         logits = lm_output['logits'][:, :, :hparams.n_vocab]
         presents1 = lm_output['present1']
         presents1.set_shape(model.past_shape(hparams=hparams, batch_size=batch_size))
@@ -197,9 +199,11 @@ def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', sta
         context_output = step(hparams, context[:, :-1])
 
         def body(past1, past2, prev, output):
+            global inc
+            global change
             global w1
             global w2
-            global inc
+            write_lines.append('**********************************STARTED BODY*********************************************\n')
             if use_random:
                 w1 = weight_random()
                 w2 = 1 - w1
@@ -207,14 +211,28 @@ def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', sta
                 w1 = weight_swap(w1)
                 w2 = 1 - w1
             elif use_f1:
-                global inc
                 if w1 == 1.0:
                     inc = False
                 if w1 == 0.0:
                     inc = True
                 weight_function1(w1, inc)
                 # print("**" + str(w1))
-            next_outputs = step(hparams, prev[:, tf.newaxis], past1=past1, past2=past2, w1=w1, w2=w2)
+            elif use_fifty_one:
+                global change
+                #if tf.math.greater(tf.size(output), tf.constant(int(length/2))):
+                if change >= 1:
+                    #f = open('testy.txt', 'a', encoding='utf-8')
+                    write_lines.append('**********************************CHANGED WEIGHTS*********************************************\n')
+                    #f.close()
+                    w1 = 1.0
+                    w2 = 0.0
+                else:
+                    w1 = 0.5
+                    w2 = 0.5
+                    change += 1
+                    write_lines.append('{}, {}\n'.format(str(change), output.shape))
+            write_lines.append('w1: {} w2:{}\n'.format(w1, w2))
+            next_outputs = step(hparams, prev[:, tf.newaxis], past1=past1, past2=past2, we1=w1, we2=w2)
             logits = next_outputs['logits'][:, -1, :] / tf.to_float(temperature)
             if top_p > 0.0:
                 logits = top_p_logits_combined(next_outputs, temperature, p=top_p)
@@ -248,7 +266,13 @@ def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', sta
             ],
             back_prop=False,
         )
-
+        # f = open('testy_sample.txt', 'a', encoding='utf-8')
+        # f.write('\n\n I ENDED THE SAMPLE \n\n')
+        # f.close()
+        write_lines.append('\n\n I ENDED THE SAMPLE \n\n')
+        f = open('testy_body.txt', 'a', encoding='utf-8')
+        f.writelines(write_lines)
+        f.close()
         return tokens
 
 
@@ -291,7 +315,8 @@ def return_logits(*, hparams, length, run_name1='', run_name2='', start_token=No
             elif use_swap:
                 w1 = weight_swap(w1)
                 w2 = 1 - w1
-                # print("**" + str(w1))
+                # print("**" + str(w1)
+            
             next_outputs = step(hparams, prev[:, tf.newaxis], past=past, w1=w1, w2=w2)
             #logits = next_outputs['logits'][:, -1, :] / tf.to_float(temperature)
             # if top_p > 0.0:
@@ -331,6 +356,15 @@ def weight_random():
 
 def weight_swap(weight1):
     return 1 - weight1
+
+def weight_one():
+    return 1.0
+
+def reset_to_default():
+    global change
+    global inc
+    inc = True
+    change = 0
 
 
 def weight_function1(weight1, incr):

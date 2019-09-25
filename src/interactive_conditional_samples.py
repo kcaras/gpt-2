@@ -88,8 +88,8 @@ def interact_model(
 
 def interact_combined_model(
         model_name='117M',
-        run_name1='cornell_movies',
-        run_name2='cornell_supreme',
+        run_name1='brown_romance',
+        run_name2='scifi',
         seed=None,
         nsamples=3,
         batch_size=1,
@@ -97,8 +97,8 @@ def interact_combined_model(
         temperature=1.2,
         top_k=50,
         top_p=0.0,
-        weight1=0.7,
-        weight2=0.3,
+        weight1=0.5,
+        weight2=0.5,
         use_random=False,
         use_swap=False,
         use_f1=False
@@ -168,9 +168,9 @@ def interact_combined_model(
             while not raw_text:
                 #print('Prompt should not be empty!')
                 #raw_text = input("Model prompt >>> ")
-                raw_text = 'How is your day today? Someone commited murder...'
+                #raw_text = 'How is your day today? Someone commited murder...'
                 #raw_text = 'Love is a crazy thing, Your Honor. I killed my stupid, ugly, deadbeat husband so that we could be together. I love you, Your Honor! I hate you!'
-                #raw_text = 'Love is a crazy thing, Your Honor. I killed my stupid, ugly, deadbeat husband so that we could be together. I love you, Your Honor! You who has such lovely golden locks. Accept my love!!! I plea guilty of the crime that is love!'
+                raw_text = 'Love is a crazy thing, Your Honor. I killed my stupid, ugly, deadbeat husband so that we could be together. I love you, Your Honor! You who has such lovely golden locks. Accept my love!!! I plea guilty of the crime that is love!'
                 print('Model prompt >>> {}'.format(raw_text))
             # w1 = input('weight for {}'.format(run_name1))
             # if not w1:
