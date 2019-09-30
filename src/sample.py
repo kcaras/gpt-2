@@ -10,6 +10,7 @@ w2 = 0.5
 change = 0
 inc = True
 
+
 def top_k_logits(logits, k):
     if k == 0:
         # no truncation
@@ -21,6 +22,25 @@ def top_k_logits(logits, k):
         return tf.where(
             logits < min_values,
             tf.ones_like(logits, dtype=logits.dtype) * -1e10,
+            logits,
+        )
+    return tf.cond(
+       tf.equal(k, 0),
+       lambda: logits,
+       lambda: _top_k(),
+    )
+
+def top_k_logits_softer(logits, k):
+    if k == 0:
+        # no truncation
+        return logits
+
+    def _top_k():
+        values, _ = tf.nn.top_k(logits, k=k)
+        min_values = values[:, -1, tf.newaxis]
+        return tf.where(
+            logits < min_values,
+            tf.ones_like(logits, dtype=logits.dtype) * 1e-10,
             logits,
         )
     return tf.cond(
@@ -63,6 +83,8 @@ def top_p_logits(logits, p):
 #        lambda: _top_k(),
 #     )
 #
+
+
 def top_p_logits_combined(next_outputs, temperature, p):
     with tf.variable_scope('top_p_logits'):
         # logits_sort = tf.sort(logits, direction='DESCENDING')
@@ -162,15 +184,127 @@ def sample_sequence(*, hparams, length, start_token=None, batch_size=None, conte
         return tokens
 
 
-def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', start_token=None, batch_size=None, context=None, temperature=1, top_k=0, top_p=0.0, weight1=0.5, weight2=0.5, use_random=False, use_swap=False, use_f1=False, inc=False, use_fifty_one=True):
+# def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', start_token=None, batch_size=None, context=None, temperature=1, top_k=0, top_p=0.0, weight1=0.5, weight2=0.5, use_random=False, use_swap=False, use_f1=False, inc=False, use_fifty_one=True):
+#     # if weight1 >= 1.0:
+#     #     inc = False
+#     global w1
+#     global w2
+#     w1 = weight1
+#     w2 = weight2
+#     write_lines = []
+#     write_lines.append('\n\n I STARTED THE SAMPLE \n\n')
+#     if start_token is None:
+#         assert context is not None, 'Specify exactly one of start_token and context!'
+#     else:
+#         assert context is None, 'Specify exactly one of start_token and context!'
+#         context = tf.fill([batch_size, 1], start_token)
+#
+#     def step(hparams, tokens, past1=None, past2=None, we1=weight1, we2=weight2):
+#         lm_output = model.combined_model(hparams=hparams, scope1=run_name1, scope2=run_name2, X=tokens, past1=past1, past2=past2, reuse=tf.AUTO_REUSE, weight1=we1, weight2=we2)
+#         logits = lm_output['logits'][:, :, :hparams.n_vocab]
+#         presents1 = lm_output['present1']
+#         presents1.set_shape(model.past_shape(hparams=hparams, batch_size=batch_size))
+#         presents2 = lm_output['present2']
+#         presents2.set_shape(model.past_shape(hparams=hparams, batch_size=batch_size))
+#         return {
+#             'logits': logits,
+#             'logits1': lm_output['logits1'],
+#             'logits2': lm_output['logits2'],
+#             'presents1': presents1,
+#             'presents2': presents2,
+#         }
+#
+#     with tf.name_scope('sample_sequence'):
+#         # Don't feed the last context token -- leave that to the loop below
+#         # TODO: Would be slightly faster if we called step on the entire context,
+#         # rather than leaving the last token transformer calculation to the while loop.
+#         context_output = step(hparams, context[:, :-1])
+#
+#         def body(past1, past2, prev, output):
+#             global inc
+#             global change
+#             global w1
+#             global w2
+#             write_lines.append('**********************************STARTED BODY*********************************************\n')
+#             if use_random:
+#                 w1 = weight_random()
+#                 w2 = 1 - w1
+#             elif use_swap:
+#                 w1 = weight_swap(w1)
+#                 w2 = 1 - w1
+#             elif use_f1:
+#                 if w1 == 1.0:
+#                     inc = False
+#                 if w1 == 0.0:
+#                     inc = True
+#                 weight_function1(w1, inc)
+#                 # print("**" + str(w1))
+#             elif use_fifty_one:
+#                 global change
+#                 #if tf.math.greater(tf.size(output), tf.constant(int(length/2))):
+#                 if change >= 1:
+#                     #f = open('testy.txt', 'a', encoding='utf-8')
+#                     write_lines.append('**********************************CHANGED WEIGHTS*********************************************\n')
+#                     #f.close()
+#                     w1 = 1.0
+#                     w2 = 0.0
+#                 else:
+#                     w1 = 0.5
+#                     w2 = 0.5
+#                     change += 1
+#                     write_lines.append('{}, {}\n'.format(str(change), output.shape))
+#             write_lines.append('w1: {} w2:{}\n'.format(w1, w2))
+#             next_outputs = step(hparams, prev[:, tf.newaxis], past1=past1, past2=past2, we1=w1, we2=w2)
+#             logits = next_outputs['logits'][:, -1, :] / tf.to_float(temperature)
+#             if top_p > 0.0:
+#                 logits = top_p_logits_combined(next_outputs, temperature, p=top_p)
+#             else:
+#                 logits = top_k_logits(logits, k=top_k)
+#             samples = tf.multinomial(logits, num_samples=1, output_dtype=tf.int32)
+#             return [
+#                 tf.concat([past1, next_outputs['presents1']], axis=-2),
+#                 tf.concat([past2, next_outputs['presents2']], axis=-2),
+#                 tf.squeeze(samples, axis=[1]),
+#                 tf.concat([output, samples], axis=1),
+#             ]
+#
+#         def cond(*args):
+#             return True
+#
+#         _, _, _, tokens = tf.while_loop(
+#             cond=cond, body=body,
+#             maximum_iterations=length,
+#             loop_vars=[
+#                 context_output['presents1'],
+#                 context_output['presents2'],
+#                 context[:, -1],
+#                 context,
+#             ],
+#             shape_invariants=[
+#                 tf.TensorShape(model.past_shape(hparams=hparams, batch_size=batch_size)),
+#                 tf.TensorShape(model.past_shape(hparams=hparams, batch_size=batch_size)),
+#                 tf.TensorShape([batch_size]),
+#                 tf.TensorShape([batch_size, None]),
+#             ],
+#             back_prop=False,
+#         )
+#         # f = open('testy_sample.txt', 'a', encoding='utf-8')
+#         # f.write('\n\n I ENDED THE SAMPLE \n\n')
+#         # f.close()
+#         write_lines.append('\n\n I ENDED THE SAMPLE \n\n')
+#         f = open('testy_body.txt', 'a', encoding='utf-8')
+#         f.writelines(write_lines)
+#         f.close()
+#         return tokens
+
+
+def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', start_token=None, batch_size=None, context=None, temperature=1, top_k=0, top_p=0.0, weight1=0.5, weight2=0.5, use_random=False, use_swap=False, use_f1=False, inc=False, use_fifty_one=True, debug=True):
     # if weight1 >= 1.0:
     #     inc = False
     global w1
     global w2
     w1 = weight1
     w2 = weight2
-    write_lines = []
-    write_lines.append('\n\n I STARTED THE SAMPLE \n\n')
     if start_token is None:
         assert context is not None, 'Specify exactly one of start_token and context!'
     else:
@@ -203,7 +337,6 @@ def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', sta
             global change
             global w1
             global w2
-            write_lines.append('**********************************STARTED BODY*********************************************\n')
             if use_random:
                 w1 = weight_random()
                 w2 = 1 - w1
@@ -221,24 +354,28 @@ def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', sta
                 global change
                 #if tf.math.greater(tf.size(output), tf.constant(int(length/2))):
                 if change >= 1:
-                    #f = open('testy.txt', 'a', encoding='utf-8')
-                    write_lines.append('**********************************CHANGED WEIGHTS*********************************************\n')
-                    #f.close()
                     w1 = 1.0
                     w2 = 0.0
                 else:
                     w1 = 0.5
                     w2 = 0.5
                     change += 1
-                    write_lines.append('{}, {}\n'.format(str(change), output.shape))
-            write_lines.append('w1: {} w2:{}\n'.format(w1, w2))
             next_outputs = step(hparams, prev[:, tf.newaxis], past1=past1, past2=past2, we1=w1, we2=w2)
             logits = next_outputs['logits'][:, -1, :] / tf.to_float(temperature)
+            logits1 = tf.nn.softmax(next_outputs['logits1'])[:, -1, :] #/ tf.to_float(temperature)
+            logits2 = tf.nn.softmax(next_outputs['logits2'])[:, -1, :] #/ tf.to_float(temperature)
+
             if top_p > 0.0:
                 logits = top_p_logits_combined(next_outputs, temperature, p=top_p)
             else:
-                logits = top_k_logits(logits, k=top_k)
-            samples = tf.multinomial(logits, num_samples=1, output_dtype=tf.int32)
+                logits = top_k_logits_softer(logits, k=top_k)
+                if debug:
+                    logits1_idxs = top_k_logits_softer(logits1, k=top_k)
+                    logits2_idxs = top_k_logits_softer(logits2, k=top_k)
+                    tf.summary.histogram(run_name1, logits1)
+                    tf.summary.histogram(run_name2, logits2)
+
+            samples = tf.multinomial(tf.math.log(logits), num_samples=1, output_dtype=tf.int32)
             return [
                 tf.concat([past1, next_outputs['presents1']], axis=-2),
                 tf.concat([past2, next_outputs['presents2']], axis=-2),
@@ -266,13 +403,7 @@ def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', sta
             ],
             back_prop=False,
         )
-        # f = open('testy_sample.txt', 'a', encoding='utf-8')
-        # f.write('\n\n I ENDED THE SAMPLE \n\n')
-        # f.close()
-        write_lines.append('\n\n I ENDED THE SAMPLE \n\n')
-        f = open('testy_body.txt', 'a', encoding='utf-8')
-        f.writelines(write_lines)
-        f.close()
+
         return tokens
 
 
@@ -349,6 +480,141 @@ def return_logits(*, hparams, length, run_name1='', run_name2='', start_token=No
         return out
 
 
+def return_combined_logits(*, hparams, length, run_name1='', run_name2='',
+                           start_token=None, batch_size=None, context=None, temperature=1, top_k=0, top_p=0.0,
+                           weight1=0.5, weight2=0.5, use_random=False, use_swap=False, use_f1=False, inc=False,
+                           use_fifty_one=True, debug=True):
+    # if weight1 >= 1.0:
+    #     inc = False
+    global w1
+    global w2
+    w1 = weight1
+    w2 = weight2
+
+    if start_token is None:
+        assert context is not None, 'Specify exactly one of start_token and context!'
+    else:
+        assert context is None, 'Specify exactly one of start_token and context!'
+        context = tf.fill([batch_size, 1], start_token)
+
+    def step(hparams, tokens, past1=None, past2=None, we1=weight1, we2=weight2):
+        lm_output = model.combined_model(hparams=hparams, scope1=run_name1, scope2=run_name2, X=tokens, past1=past1, past2=past2, reuse=tf.AUTO_REUSE, weight1=we1, weight2=we2)
+        logits = lm_output['logits'][:, :, :hparams.n_vocab]
+        presents1 = lm_output['present1']
+        presents1.set_shape(model.past_shape(hparams=hparams, batch_size=batch_size))
+        presents2 = lm_output['present2']
+        presents2.set_shape(model.past_shape(hparams=hparams, batch_size=batch_size))
+        return {
+            'logits': logits,
+            'logits1': lm_output['logits1'],
+            'logits2': lm_output['logits2'],
+            'presents1': presents1,
+            'presents2': presents2,
+        }
+
+    with tf.name_scope('sample_sequence'):
+        # Don't feed the last context token -- leave that to the loop below
+        # TODO: Would be slightly faster if we called step on the entire context,
+        # rather than leaving the last token transformer calculation to the while loop.
+        context_output = step(hparams, context[:, :-1])
+
+        def body(past1, past2, prev, output):
+            global inc
+            global change
+            global w1
+            global w2
+            if use_random:
+                w1 = weight_random()
+                w2 = 1 - w1
+            elif use_swap:
+                w1 = weight_swap(w1)
+                w2 = 1 - w1
+            elif use_f1:
+                if w1 == 1.0:
+                    inc = False
+                if w1 == 0.0:
+                    inc = True
+                weight_function1(w1, inc)
+                # print("**" + str(w1))
+            elif use_fifty_one:
+                global change
+                #if tf.math.greater(tf.size(output), tf.constant(int(length/2))):
+                if change >= 1:
+                    w1 = 1.0
+                    w2 = 0.0
+                else:
+                    w1 = 0.5
+                    w2 = 0.5
+                    change += 1
+            next_outputs = step(hparams, prev[:, tf.newaxis], past1=past1, past2=past2, we1=w1, we2=w2)
+            logits = next_outputs['logits'][:, -1, :] / tf.to_float(temperature)
+            #logits1 = tf.nn.softmax(next_outputs['logits1'])[:, -1, :] / tf.to_float(temperature)
+            #logits2 = tf.nn.softmax(next_outputs['logits2'])[:, -1, :] / tf.to_float(temperature)
+
+            logits1 = next_outputs['logits1'][:, -1, :]  / tf.to_float(temperature)
+            logits2 = next_outputs['logits2'][:, -1, :]  / tf.to_float(temperature)
+
+            if top_p > 0.0:
+                logits = top_p_logits_combined(next_outputs, temperature, p=top_p)
+                log = {}
+            else:
+                logits = top_k_logits(logits2, k=top_k)
+                if debug:
+                    #logits1_idxs = top_k_logits(logits1, k=top_k)
+                    #logits2_idxs = top_k_logits(logits2, k=top_k)
+                    #tf.summary.histogram(run_name1, logits1)
+                    #tf.summary.histogram(run_name2, logits2)
+                    log = {
+                        'logits1': tf.nn.softmax(next_outputs['logits1'])[:, -1, :] / tf.to_float(temperature),
+                        'logits2': tf.nn.softmax(next_outputs['logits2'])[:, -1, :] / tf.to_float(temperature),
+                        #'logits1_idxs': logits1_idxs,
+                        #'logits2_idxs': logits2_idxs
+                    }
+                else:
+                    log = {
+                        'logits1': tf.nn.softmax(next_outputs['logits1'])[:, -1, :] / tf.to_float(temperature),
+                        'logits2': tf.nn.softmax(next_outputs['logits2'])[:, -1, :] / tf.to_float(temperature),
+                    }
+            samples = tf.multinomial(logits, num_samples=1, output_dtype=tf.int32)
+            return [
+                tf.concat([past1, next_outputs['presents1']], axis=-2),
+                tf.concat([past2, next_outputs['presents2']], axis=-2),
+                tf.squeeze(samples, axis=[1]),
+                tf.concat([output, samples], axis=1),
+                log
+            ]
+
+        def cond(*args):
+            return True
+
+        i = 0
+        p1 = context_output['presents1']
+        p2 = context_output['presents2']
+        previous = context[:, -1]
+        o = context
+        out_log = {}
+        while i < length:
+            p1, p2, previous, o, log = body(p1, p2, previous, o)
+            out_log[i] = log
+            i += 1
+        # _, _, tokens = tf.while_loop(
+        #     cond=cond, body=body,
+        #     maximum_iterations=length,
+        #     loop_vars=[
+        #         context_output['presents'],
+        #         context[:, -1],
+        #         context,
+        #     ],
+        #     shape_invariants=[
+        #         tf.TensorShape(model.past_shape(hparams=hparams, batch_size=batch_size)),
+        #         tf.TensorShape([batch_size]),
+        #         tf.TensorShape([batch_size, None]),
+        #     ],
+        #     back_prop=False,
+        # )
+        return out_log, o
+
+
 def weight_random():
     w1 = random.uniform(0, 1)
     return w1
@@ -401,7 +667,7 @@ def weight_function1(weight1, incr):
 #         length = hparams.n_ctx
 #     elif length > hparams.n_ctx:
 #         raise ValueError("Can't get samples longer than window size: %s" % hparams.n_ctx)
-#     output = sample_sequence_combined_test(
+#     out_log, tokens = return_combined_logits(
 #         hparams=hparams, run_name1=run_name1, run_name2=run_name2,
 #         length=length,
 #         start_token=enc.encoder['<|endoftext|>'],
@@ -413,4 +679,10 @@ def weight_function1(weight1, incr):
 #         weight2=weight2,
 #         use_random=use_random,
 #         use_swap=use_swap
-#     )[:, 1:]
+#     )
+#     tokens = tokens[:, 1:]
+#
+#     print(out_log[0]['logits1'].shape)
+#     print(out_log[0]['logits1_idxs'].shape)
+
+
