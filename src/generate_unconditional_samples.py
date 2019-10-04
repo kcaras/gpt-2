@@ -6,7 +6,7 @@ import os
 import numpy as np
 import tensorflow as tf
 
-import model, sample, encoder
+import model, sample, encoder, create_graphs
 import json
 
 def sample_model(
@@ -82,7 +82,7 @@ def sample_combined_models(
     seed=None,
     nsamples=200,
     batch_size=1,
-    length=30,
+    length=200,
     temperature=1,
     top_k=40,
     top_p=0.0,
@@ -90,8 +90,8 @@ def sample_combined_models(
     weight2=0.5,
     use_random=False,
     use_swap=False,
-    use_fifty_one=True,
-    debug=True
+    use_fifty_one=False,
+    debug=False
 ):
     """
     Run the sample_model
@@ -128,9 +128,9 @@ def sample_combined_models(
     #     en_fr_model = create_model(...)
     # with tf.variable_scope(run_name2):
     #     fr_en_model = create_model(...)
-    tester_body = open('testy_body.txt', 'a', encoding='utf-8')
-    tester_body.write('calling sample_sequence\n')
-    tester_body.close()
+    # tester_body = open('testy_body.txt', 'a', encoding='utf-8')
+    # tester_body.write('calling sample_sequence\n')
+    # tester_body.close()
     with tf.Session(graph=tf.Graph()) as sess:
         np.random.seed(seed)
         tf.set_random_seed(seed)
@@ -172,9 +172,9 @@ def sample_combined_models(
         else:
             out_file = 'samples/{}_{}/two_pasts/static_weights/temp_{}_len_{}_p_{}_k_{}_w1_{}_w2_{}.txt'.format(run_name1, run_name2,temperature, str(length), top_p, top_k, weight1, weight2)
         f = open(out_file, 'w', encoding='utf-8')
-        tester = open('testy_gen.txt', 'w', encoding='utf-8')
+        #tester = open('testy_gen.txt', 'w', encoding='utf-8')
 
-        testLines = []
+        #testLines = []
         cnt = 0
         generated = 0
         if debug:
@@ -327,20 +327,23 @@ def print_logits(
 def print_combined_logits(
     model_name='117M',
     run_name1='brown_romance',
-    run_name2='scifi',
+    run_name2='cornell_supreme',
     seed=None,
     nsamples=1,
-    batch_size=1,
-    length=25,
+    batch_size=20,
+    length=40,
     temperature=1,
-    top_k=0,
+    top_k=40,
     top_p=0.0,
-    weight1=0.0,
-    weight2=1.0,
+    weight1=0.5,
+    weight2=0.5,
     use_random=False,
     use_swap=False,
     use_fifty_one=False,
-    debug=True
+    debug=True,
+    logits_used=0,
+    ex_num='ex_combined',
+    display_logits=True
 ):
     """
     Run the sample_model
@@ -367,16 +370,15 @@ def print_combined_logits(
     hparams = model.default_hparams()
     with open(os.path.join('models', model_name, 'hparams.json')) as f:
         hparams.override_from_dict(json.load(f))
-
     if length is None:
         length = hparams.n_ctx
     elif length > hparams.n_ctx:
         raise ValueError("Can't get samples longer than window size: %s" % hparams.n_ctx)
 
-    # with tf.variable_scope(run_name1):
-    #     en_fr_model = create_model(...)
-    # with tf.variable_scope(run_name2):
-    #     fr_en_model = create_model(...)
+    # def score(sentence):
+    #     tensor_input = enc.encode(sentence)
+    #     loss = model(tensor_input, lm_labels=tensor_input)
+    #     return -loss[0] * len(tokenize_input)
 
     with tf.Session(graph=tf.Graph()) as sess:
         np.random.seed(seed)
@@ -394,6 +396,8 @@ def print_combined_logits(
             weight2=weight2,
             use_random=use_random,
             use_swap=use_swap,
+            logits_used=logits_used,
+            display_logits=display_logits
         )
 
         saver1 = tf.train.Saver([v for v in tf.all_variables() if run_name1 in v.name])
@@ -403,13 +407,13 @@ def print_combined_logits(
         ckpt2 = tf.train.latest_checkpoint(os.path.join('checkpoint', run_name2))
         saver2.restore(sess, ckpt2)
         generated = 0
-        names = [run_name1, run_name2]
-        ex_num = 'ex1'
+        names = [run_name1, run_name2, 'combined']
+        log_dir = '/media/twister/04dc1255-e775-4227-9673-cea8d37872c7/humor_gen/caras_humor/logs'
         while nsamples == 0 or generated < nsamples:
             out_log, out = sess.run(output)
             for i in out_log.keys():
-                for j, logy in enumerate(['logits1', 'logits2']):
-                    out_file1 = 'logs/{}/{}_{}/{}/{}_{}.json'.format(ex_num, run_name1, run_name2, names[j], i, logy)
+                for j, logy in enumerate(['logits1', 'logits2', 'logits']):
+                    out_file1 = '{}/{}/{}/{}_{}/{}/{}_{}.json'.format(log_dir, ex_num, logits_used, run_name1, run_name2, names[j], i, logy)
                     odict = {}
                     of1 = open(out_file1, 'w', encoding='utf-8')
                     logits = out_log[i][logy]
@@ -436,13 +440,14 @@ def print_combined_logits(
                 print(out_log[0]['logits1'][0][0])
                 #print(out_log[0]['logits1_idxs'].shape)
                 #print(out_log[0]['logits1_idxs'][0])
-                text_file = 'logs/{}/{}_{}/text.txt'.format(ex_num, run_name1, run_name2)
+                text_file = '{}/{}/{}/{}_{}/text.txt'.format(log_dir, ex_num, logits_used, run_name1, run_name2)
                 tfile = open(text_file, 'w', encoding='utf-8')
-                tfile.write(text + '\n')
+                tfile.write(text.replace('\n', '') + '\n')
                 nums = [str(out[i][z]) for z in range(out[i].shape[0])]
                 tfile.write(' '.join(nums))
                 tfile.close()
 
+        create_graphs.create_word_chart(model_name, run_name1 , run_name2, log_dir, ex_num, logits_used, display_combined=True)
         #f.close()
 
 if __name__ == '__main__':

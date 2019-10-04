@@ -40,7 +40,7 @@ def top_k_logits_softer(logits, k):
         min_values = values[:, -1, tf.newaxis]
         return tf.where(
             logits < min_values,
-            tf.ones_like(logits, dtype=logits.dtype) * 1e-10,
+            tf.ones_like(logits, dtype=logits.dtype)* 1e-10,
             logits,
         )
     return tf.cond(
@@ -125,7 +125,7 @@ def top_p_logits_combined(next_outputs, temperature, p):
         return res1*w1 + res2*w2
 
 
-def sample_sequence(*, hparams, length, start_token=None, batch_size=None, context=None, temperature=1, top_k=0, top_p=0.0):
+def sample_sequence(*, hparams, length, start_token=None, batch_size=None, context=None, temperature=1, top_k=0, top_p=0.0, run_name='brown_romance'):
     if start_token is None:
         assert context is not None, 'Specify exactly one of start_token and context!'
     else:
@@ -133,7 +133,7 @@ def sample_sequence(*, hparams, length, start_token=None, batch_size=None, conte
         context = tf.fill([batch_size, 1], start_token)
 
     def step(hparams, tokens, past=None):
-        lm_output = model.model(hparams=hparams, X=tokens, past=past, reuse=tf.AUTO_REUSE)
+        lm_output = model.model(hparams=hparams, X=tokens, past=past, reuse=tf.AUTO_REUSE, scope=run_name)
         logits = lm_output['logits'][:, :, :hparams.n_vocab]
         presents = lm_output['present']
         presents.set_shape(model.past_shape(hparams=hparams, batch_size=batch_size))
@@ -152,7 +152,7 @@ def sample_sequence(*, hparams, length, start_token=None, batch_size=None, conte
             next_outputs = step(hparams, prev[:, tf.newaxis], past=past)
             logits = next_outputs['logits'][:, -1, :] / tf.to_float(temperature)
             if top_p > 0.0:
-                logits = top_p_logits(logits, temperature, p=top_p)
+                logits = top_p_logits(logits, p=top_p)
             else:
                 logits = top_k_logits(logits, k=top_k)
             samples = tf.multinomial(logits, num_samples=1, output_dtype=tf.int32)
@@ -483,14 +483,13 @@ def return_logits(*, hparams, length, run_name1='', run_name2='', start_token=No
 def return_combined_logits(*, hparams, length, run_name1='', run_name2='',
                            start_token=None, batch_size=None, context=None, temperature=1, top_k=0, top_p=0.0,
                            weight1=0.5, weight2=0.5, use_random=False, use_swap=False, use_f1=False, inc=False,
-                           use_fifty_one=True, debug=True):
+                           use_fifty_one=True, debug=True, logits_used=0, display_logits=False):
     # if weight1 >= 1.0:
     #     inc = False
     global w1
     global w2
     w1 = weight1
     w2 = weight2
-
     if start_token is None:
         assert context is not None, 'Specify exactly one of start_token and context!'
     else:
@@ -506,8 +505,8 @@ def return_combined_logits(*, hparams, length, run_name1='', run_name2='',
         presents2.set_shape(model.past_shape(hparams=hparams, batch_size=batch_size))
         return {
             'logits': logits,
-            'logits1': lm_output['logits1'],
-            'logits2': lm_output['logits2'],
+            'logits1': lm_output['logits1'][:, :, :hparams.n_vocab],
+            'logits2': lm_output['logits2'][:, :, :hparams.n_vocab],
             'presents1': presents1,
             'presents2': presents2,
         }
@@ -554,27 +553,39 @@ def return_combined_logits(*, hparams, length, run_name1='', run_name2='',
             logits1 = next_outputs['logits1'][:, -1, :]  / tf.to_float(temperature)
             logits2 = next_outputs['logits2'][:, -1, :]  / tf.to_float(temperature)
 
-            if top_p > 0.0:
+            if logits_used == 0:
+                lu = logits
+            elif logits_used == 1:
+                lu = logits1
+            elif logits_used == 2:
+                lu = logits2
+            else:
+                lu = logits
+            if False:#top_p > 0.0:
                 logits = top_p_logits_combined(next_outputs, temperature, p=top_p)
                 log = {}
             else:
-                logits = top_k_logits(logits2, k=top_k)
-                if debug:
-                    #logits1_idxs = top_k_logits(logits1, k=top_k)
-                    #logits2_idxs = top_k_logits(logits2, k=top_k)
-                    #tf.summary.histogram(run_name1, logits1)
-                    #tf.summary.histogram(run_name2, logits2)
+                if display_logits:
                     log = {
-                        'logits1': tf.nn.softmax(next_outputs['logits1'])[:, -1, :] / tf.to_float(temperature),
-                        'logits2': tf.nn.softmax(next_outputs['logits2'])[:, -1, :] / tf.to_float(temperature),
-                        #'logits1_idxs': logits1_idxs,
-                        #'logits2_idxs': logits2_idxs
+                        'logits1': logits1,
+                        'logits2': logits2,
+                         'logits': logits
                     }
                 else:
                     log = {
                         'logits1': tf.nn.softmax(next_outputs['logits1'])[:, -1, :] / tf.to_float(temperature),
                         'logits2': tf.nn.softmax(next_outputs['logits2'])[:, -1, :] / tf.to_float(temperature),
+                        'logits': logits
                     }
+                logits = top_k_logits(lu, k=top_k)
+
+                #if debug:
+                    #logits1_idxs = top_k_logits(logits1, k=top_k)
+                    #logits2_idxs = top_k_logits(logits2, k=top_k)
+                    #tf.summary.histogram(run_name1, logits1)
+                    #tf.summary.histogram(run_name2, logits2)
+
+
             samples = tf.multinomial(logits, num_samples=1, output_dtype=tf.int32)
             return [
                 tf.concat([past1, next_outputs['presents1']], axis=-2),

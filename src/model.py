@@ -241,9 +241,9 @@ def combined_model(hparams, X, past1=None, past2=None, scope1='brown_romance', s
         logits2 = tf.reshape(logits2, [batch2, sequence2, hparams.n_vocab])
         results['logits2'] = logits2
         #results['logits2'] = tf.math.log(tf.math.exp(logits2)*weight2)
-    results['logits'] = tf.nn.softmax(results['logits1'])*weight1 + tf.nn.softmax(results['logits2'])*weight2
+    #results['logits'] = tf.nn.softmax(results['logits1'])*weight1 + tf.nn.softmax(results['logits2'])*weight2
     #results['present'] = tf.nn.softmax(results['present1'])*weight1 + tf.nn.softmax(results['present2'])*weight2
-    #results['logits'] = logits1 #+ logits2
+    results['logits'] = logits1*weight1 + logits2*weight2
     #results['present'] = results['present1'] #+ results['present2']
     #results['logits'] = tf.math.log_prob(tf.math.exp(results['logits1'])*weight1 + tf.math.exp(results['logits2'])*weight2 + tf.math.exp(0.00000001))
     #results['present'] = tf.math.log(tf.math.exp(results['present1'])*weight1 + tf.math.exp(results['present2'])*weight2 + tf.math.exp(0.00000001))
