@@ -5,11 +5,11 @@ import json
 import math
 
 
-def create_sentence_chart(loss_dict, ex_num, run_name1, run_name2, logits_used, display_combined=True):
+def create_sentence_chart(loss_dict, ex_num, run_name1, run_name2, logits_used, repeat, weight1, weight2, display_combined=True):
     combined = 'combined'
     x = ['s{}'.format(i) for i in range(len(loss_dict[combined]))]
     plt.figure(figsize=(20, 20))
-    plt.title('Sentence Probabilities')
+    plt.title('Probs : {} {}'.format(run_name1, run_name2))
     for loss_name in loss_dict.keys():
         if loss_name != combined:
             plt.plot(x, loss_dict[loss_name], label=loss_name)
@@ -19,7 +19,7 @@ def create_sentence_chart(loss_dict, ex_num, run_name1, run_name2, logits_used, 
 
     plt.legend()
     plt.savefig(
-        '/home/twister/Dropbox (GaTech)/caras_graphs/{}_{}_{}_{}.png'.format(ex_num, logits_used, run_name1, run_name2))
+        '/home/twister/Dropbox (GaTech)/caras_graphs/{}_{}_{}_{}_{}_{}_{}.png'.format(ex_num, repeat, logits_used, run_name1, run_name2, weight1, weight2))
     plt.show()
     #plt.clf()
 

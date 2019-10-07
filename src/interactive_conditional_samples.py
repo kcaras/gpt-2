@@ -89,24 +89,26 @@ def interact_model(
 
 def print_combined_sentences(
     model_name='117M',
-    run_name1='brown_romance',
+    run_name1='scifi',
     run_name2='cornell_supreme',
     seed=None,
     nsamples=1,
-    batch_size=20,
-    length=400,
+    batch_size=1,
+    length=25,
     temperature=1,
     top_k=40,
     top_p=0.0,
-    weight1=0.4,
-    weight2=0.6,
+    weight1=0.5,
+    weight2=0.5,
     use_random=False,
     use_swap=False,
     use_fifty_one=False,
     debug=True,
-    logits_used=1,
+    logits_used=0,
     ex_num='ex_sentence',
-    display_logits=True
+    display_logits=True,
+    display_combined=False,
+    repeat=10
 ):
     """
     Run the sample_model
@@ -142,119 +144,119 @@ def print_combined_sentences(
     #     tensor_input = enc.encode(sentence)
     #     loss = model(tensor_input, lm_labels=tensor_input)
     #     return -loss[0] * len(tokenize_input)
-    raw_text = 'Call the court to order!'
-    with tf.Session(graph=tf.Graph()) as sess:
-        np.random.seed(seed)
-        tf.set_random_seed(seed)
-        context = tf.placeholder(tf.int32, [batch_size, None])
+    raw_text = ''
+    log_dir = '/media/twister/04dc1255-e775-4227-9673-cea8d37872c7/humor_gen/caras_humor/logs'
+    losses0 = []
+    losses1 = []
+    losses2 = []
+    all_text = []
+    for cnt in range(repeat):
+        with tf.Session(graph=tf.Graph()) as sess:
+            np.random.seed(seed)
+            tf.set_random_seed(seed)
+            context = tf.placeholder(tf.int32, [batch_size, None])
 
-        output = sample.return_combined_logits(
-            hparams=hparams, run_name1=run_name1, run_name2=run_name2,
-            length=length,
-            start_token=enc.encoder['<|endoftext|>'],
-            batch_size=batch_size,
-            temperature=temperature,
-            top_k=top_k,
-            top_p=top_p,
-            weight1=weight1,
-            weight2=weight2,
-            use_random=use_random,
-            use_swap=use_swap,
-            logits_used=logits_used,
-            display_logits=display_logits
-        )
+            output = sample.return_combined_logits(
+                hparams=hparams, run_name1=run_name1, run_name2=run_name2,
+                length=length + 20*cnt,
+                start_token=enc.encoder['<|endoftext|>'],
+                batch_size=batch_size,
+                temperature=temperature,
+                top_k=top_k,
+                top_p=top_p,
+                weight1=weight1,
+                weight2=weight2,
+                use_random=use_random,
+                use_swap=use_swap,
+                logits_used=logits_used,
+                display_logits=display_logits
+            )
 
-        saver1 = tf.train.Saver([v for v in tf.all_variables() if run_name1 in v.name])
-        ckpt1 = tf.train.latest_checkpoint(os.path.join('checkpoint', run_name1))
-        saver1.restore(sess, ckpt1)
-        saver2 = tf.train.Saver([v for v in tf.all_variables() if run_name2 in v.name])
-        ckpt2 = tf.train.latest_checkpoint(os.path.join('checkpoint', run_name2))
-        saver2.restore(sess, ckpt2)
-        generated = 0
-        #names = [run_name1, run_name2, 'combined']
-        log_dir = '/media/twister/04dc1255-e775-4227-9673-cea8d37872c7/humor_gen/caras_humor/logs'
-        losses0 = []
-        losses1 = []
-        losses2 = []
-        all_text = []
-        while nsamples == 0 or generated < nsamples:
-            # feed in sentence from before
-            context_tokens = enc.encode(raw_text)
-            print('\nnew: {} len_context: {}\n'.format(raw_text, len(context_tokens)))
-            out_log, out = sess.run(output,feed_dict={
-                    context: [context_tokens for _ in range(batch_size)]
-                })
-            out = out[:, len(context_tokens):]
+            saver1 = tf.train.Saver([v for v in tf.all_variables() if run_name1 in v.name])
+            ckpt1 = tf.train.latest_checkpoint(os.path.join('checkpoint', run_name1))
+            saver1.restore(sess, ckpt1)
+            saver2 = tf.train.Saver([v for v in tf.all_variables() if run_name2 in v.name])
+            ckpt2 = tf.train.latest_checkpoint(os.path.join('checkpoint', run_name2))
+            saver2.restore(sess, ckpt2)
+            generated = 0
+            #names = [run_name1, run_name2, 'combined']
+            while nsamples == 0 or generated < nsamples:
+                # feed in sentence from before
+                context_tokens = enc.encode(raw_text)
+                #print('\nnew: {} len_context: {}\n'.format(raw_text, len(context_tokens)))
+                out_log, out = sess.run(output,feed_dict={
+                        context: [context_tokens for _ in range(batch_size)]
+                    })
+                out = out[:, len(context_tokens):]
 
-            # # calculate the sentence losses
-            # output0 = model.combined_model(hparams=hparams, X=context, scope1=run_name1, scope2=run_name2)
-            # t1 = tf.nn.sparse_softmax_cross_entropy_with_logits(
-            #         labels=context[:, 1:], logits=output0['logits'][:, :-1])
-            # print('******t1 shape {}'.format(t1.shape))
-            # loss0 = tf.reduce_mean(t1)
-            # loss0_summary = tf.summary.scalar('loss0', loss0)
-            # print('******loss0 shape {}'.format(loss0.shape))
-            # output1 = model.model(hparams=hparams, X=context, scope=run_name1)
-            # loss1 = tf.reduce_mean(
-            #     tf.nn.sparse_softmax_cross_entropy_with_logits(
-            #         labels=context[:, 1:], logits=output1['logits'][:, :-1]))
-            # loss1_summary = tf.summary.scalar('loss1', loss1)
-            # output2 = model.model(hparams=hparams, X=context, scope=run_name2)
-            # loss2 = tf.reduce_mean(
-            #     tf.nn.sparse_softmax_cross_entropy_with_logits(
-            #         labels=context[:, 1:], logits=output2['logits'][:, :-1]))
-            # loss2_summary = tf.summary.scalar('loss2', loss2)
+                # # calculate the sentence losses
+                # output0 = model.combined_model(hparams=hparams, X=context, scope1=run_name1, scope2=run_name2)
+                # t1 = tf.nn.sparse_softmax_cross_entropy_with_logits(
+                #         labels=context[:, 1:], logits=output0['logits'][:, :-1])
+                # print('******t1 shape {}'.format(t1.shape))
+                # loss0 = tf.reduce_mean(t1)
+                # loss0_summary = tf.summary.scalar('loss0', loss0)
+                # print('******loss0 shape {}'.format(loss0.shape))
+                # output1 = model.model(hparams=hparams, X=context, scope=run_name1)
+                # loss1 = tf.reduce_mean(
+                #     tf.nn.sparse_softmax_cross_entropy_with_logits(
+                #         labels=context[:, 1:], logits=output1['logits'][:, :-1]))
+                # loss1_summary = tf.summary.scalar('loss1', loss1)
+                # output2 = model.model(hparams=hparams, X=context, scope=run_name2)
+                # loss2 = tf.reduce_mean(
+                #     tf.nn.sparse_softmax_cross_entropy_with_logits(
+                #         labels=context[:, 1:], logits=output2['logits'][:, :-1]))
+                # loss2_summary = tf.summary.scalar('loss2', loss2)
 
 
-            # do the logits graph stuff
-            # for i in out_log.keys():
-            #     for j, logy in enumerate(['logits1', 'logits2', 'logits']):
-            #         out_file1 = '{}/{}/{}/{}_{}/{}/{}_{}.json'.format(log_dir, ex_num, logits_used, run_name1, run_name2, names[j], i, logy)
-            #         odict = {}
-            #         of1 = open(out_file1, 'w', encoding='utf-8')
-            #         logits = out_log[i][logy]
-            #         for k in range(logits.shape[1]):
-            #             val = logits[0][k]
-            #             sym = enc.decoder[k]
-            #             #of1.write('{},{}\n'.format(sym, val))
-            #             odict[str(sym)] = float(val)
-            #         json.dump(odict, of1)
-            #         of1.close()
-            # # out_file = 'logs/{}_{}/logits1/{}'
-            for i in range(batch_size):
-                generated += batch_size
-                text = enc.decode(out[i])
-                all_text.append(text)
-                nums = [int(out[i][z]) for z in range(out[i].shape[0])]
-                loss0 = sum([out_log[max(out_log.keys())]['logits'][0][num] for num in nums])
-                loss1 = sum([out_log[max(out_log.keys())]['logits1'][0][num] for num in nums])
-                loss2 = sum([out_log[max(out_log.keys())]['logits2'][0][num] for num in nums])
-                losses0.append(loss0)
-                losses1.append(loss1)
-                losses2.append(loss2)
-                sample_str = '\n' + "=" * 40 + " SAMPLE " + str(generated) + " " + "=" * 40 + '\n'
-                # f.write(sample_str)
-                # f.write(text)
-                print(sample_str)
-                print(text)
-            #raw_text = ' '.join(all_text).replace('\n', '').replace('<|endoftext|>', '')
-            #raw_text = ''
+                # do the logits graph stuff
+                # for i in out_log.keys():
+                #     for j, logy in enumerate(['logits1', 'logits2', 'logits']):
+                #         out_file1 = '{}/{}/{}/{}_{}/{}/{}_{}.json'.format(log_dir, ex_num, logits_used, run_name1, run_name2, names[j], i, logy)
+                #         odict = {}
+                #         of1 = open(out_file1, 'w', encoding='utf-8')
+                #         logits = out_log[i][logy]
+                #         for k in range(logits.shape[1]):
+                #             val = logits[0][k]
+                #             sym = enc.decoder[k]
+                #             #of1.write('{},{}\n'.format(sym, val))
+                #             odict[str(sym)] = float(val)
+                #         json.dump(odict, of1)
+                #         of1.close()
+                # # out_file = 'logs/{}_{}/logits1/{}'
+                for i in range(batch_size):
+                    generated += batch_size
+                    text = enc.decode(out[i])
+                    all_text.append(text)
+                    nums = [int(out[i][z]) for z in range(out[i].shape[0])]
+                    loss0 = sum([out_log[max(out_log.keys())]['logits'][0][num] for num in nums])
+                    loss1 = sum([out_log[max(out_log.keys())]['logits1'][0][num] for num in nums])
+                    loss2 = sum([out_log[max(out_log.keys())]['logits2'][0][num] for num in nums])
+                    losses0.append(loss0)
+                    losses1.append(loss1)
+                    losses2.append(loss2)
+                    sample_str = '\n' + "=" * 40 + " SAMPLE " + str(generated) + " " + "=" * 40 + '\n'
+                    # f.write(sample_str)
+                    # f.write(text)
+                    print(sample_str)
+                    print(text)
+                #raw_text = ''
+        raw_text = ' '.join(all_text).replace('\n', '').replace('<|endoftext|>', '')
 
         # print("*****{}****".format(type(losses1[0])))
         # print("*****{}****".format(losses1[0].shape))
-        losses_dict = {run_name1:losses1, run_name2:losses2, 'combined':losses0}
-        text_file = '/home/twister/Dropbox (GaTech)/caras_graphs/{}_{}_{}_{}.txt'.format(ex_num, logits_used, run_name1,
-                                                                                         run_name2)
-        tfile = open(text_file, 'w', encoding='utf-8')
-        all_text = [txt.replace('\n', '').replace('<|endoftext|>', '') for txt in all_text]
-        tfile.write('\n'.join(all_text))
-        # nums = [str(out[i][z]) for z in range(out[i].shape[0])]
-        # tfile.write(' '.join(nums))
-        tfile.close()
-        #create_graphs.create_word_chart(model_name, run_name1 , run_name2, log_dir, ex_num, logits_used, display_combined=True)
-        print('{} sents'.format(len(losses0)))
-        create_graphs.create_sentence_chart(losses_dict, ex_num, run_name1, run_name2, logits_used, display_combined=True)
-        #f.close()
+    losses_dict = {run_name1:losses1, run_name2:losses2, 'combined':losses0}
+    text_file = '/home/twister/Dropbox (GaTech)/caras_graphs/{}_{}_{}_{}_{}_{}_{}.txt'.format(ex_num, repeat, logits_used, run_name1, run_name2, weight1, weight2)
+    tfile = open(text_file, 'w', encoding='utf-8')
+    all_text = [txt.replace('\n', '').replace('<|endoftext|>', '') for txt in all_text]
+    tfile.write('\n'.join(all_text))
+    # nums = [str(out[i][z]) for z in range(out[i].shape[0])]
+    # tfile.write(' '.join(nums))
+    tfile.close()
+    #create_graphs.create_word_chart(model_name, run_name1 , run_name2, log_dir, ex_num, logits_used, display_combined=True)
+    print('{} sents'.format(len(losses0)))
+    create_graphs.create_sentence_chart(losses_dict, ex_num, run_name1, run_name2, logits_used, repeat, weight1, weight2, display_combined=display_combined)
+    #f.close()
 
 def interact_combined_model(
         model_name='117M',
