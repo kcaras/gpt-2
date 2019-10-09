@@ -24,6 +24,23 @@ def create_sentence_chart(loss_dict, ex_num, run_name1, run_name2, logits_used, 
     #plt.clf()
 
 
+def create_sentence_chart_not_gen(loss_dict, ex_num, run_names, repeat):
+
+    x = ['s{}'.format(i) for i in range(len(loss_dict[run_names[0]]))]
+    plt.figure(figsize=(20, 20))
+    plt.title('Probs :')
+
+    for loss_name in loss_dict.keys():
+        plt.plot(x, loss_dict[loss_name], label=loss_name)
+
+    plt.legend()
+    plt.savefig(
+        '/home/twister/Dropbox (GaTech)/caras_graphs/{}_{}_{}.png'.format(ex_num, repeat, '{}'.format('_'.join(run_names))))
+    plt.show()
+    #plt.clf()
+
+
+
 def create_word_chart(model_name, run_name1, run_name2, log_dir, ex_num, logits_used, display_combined=True):
     enc = encoder.get_encoder(model_name)
     text_path = '{}/{}/{}/{}_{}/text.txt'.format(log_dir, ex_num, logits_used, run_name1, run_name2)

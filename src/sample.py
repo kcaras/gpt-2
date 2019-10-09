@@ -125,7 +125,7 @@ def top_p_logits_combined(next_outputs, temperature, p):
         return res1*w1 + res2*w2
 
 
-def sample_sequence(*, hparams, length, start_token=None, batch_size=None, context=None, temperature=1, top_k=0, top_p=0.0, run_name='brown_romance'):
+def sample_sequence(*, hparams, length, start_token=None, batch_size=None, context=None, temperature=1, top_k=0, top_p=0.0):
     if start_token is None:
         assert context is not None, 'Specify exactly one of start_token and context!'
     else:
@@ -133,7 +133,8 @@ def sample_sequence(*, hparams, length, start_token=None, batch_size=None, conte
         context = tf.fill([batch_size, 1], start_token)
 
     def step(hparams, tokens, past=None):
-        lm_output = model.model(hparams=hparams, X=tokens, past=past, reuse=tf.AUTO_REUSE, scope=run_name)
+        lm_output = model.model(hparams=hparams, X=tokens, past=past, reuse=tf.AUTO_REUSE)
+
         logits = lm_output['logits'][:, :, :hparams.n_vocab]
         presents = lm_output['present']
         presents.set_shape(model.past_shape(hparams=hparams, batch_size=batch_size))
@@ -150,7 +151,7 @@ def sample_sequence(*, hparams, length, start_token=None, batch_size=None, conte
 
         def body(past, prev, output):
             next_outputs = step(hparams, prev[:, tf.newaxis], past=past)
-            logits = next_outputs['logits'][:, -1, :] / tf.to_float(temperature)
+            logits = next_outputs['logits'][:, -1, :]  / tf.to_float(temperature)
             if top_p > 0.0:
                 logits = top_p_logits(logits, p=top_p)
             else:
@@ -407,13 +408,8 @@ def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', sta
         return tokens
 
 
-def return_logits(*, hparams, length, run_name1='', run_name2='', start_token=None, batch_size=None, context=None, temperature=1, top_k=0, top_p=0.0, weight1=0.5, weight2=0.5, use_random=True, use_swap=False, use_f1=False, inc=True):
-    # if weight1 >= 1.0:
-    #     inc = False
-    global w1
-    global w2
-    w1 = weight1
-    w2 = weight2
+def return_logits(*, hparams, run_name='', start_token=None, batch_size=None, context=None, temperature=1, top_k=0, top_p=0.0, use_random=True, use_swap=False):
+
 
     if start_token is None:
         assert context is not None, 'Specify exactly one of start_token and context!'
@@ -421,8 +417,8 @@ def return_logits(*, hparams, length, run_name1='', run_name2='', start_token=No
         assert context is None, 'Specify exactly one of start_token and context!'
         context = tf.fill([batch_size, 1], start_token)
 
-    def step(hparams, tokens, past=None, w1=weight1, w2=weight2):
-        lm_output = model.combined_model(hparams=hparams, scope1=run_name1, scope2=run_name2, X=tokens, past=past, reuse=tf.AUTO_REUSE, weight1=w1, weight2=w2)
+    def step(hparams, tokens, past=None):
+        lm_output = model.model(hparams=hparams, scope=run_name, X=tokens, past=past, reuse=tf.AUTO_REUSE)
         logits = lm_output['logits'][:, :, :hparams.n_vocab]
         presents = lm_output['present']
         presents.set_shape(model.past_shape(hparams=hparams, batch_size=batch_size))
@@ -448,7 +444,7 @@ def return_logits(*, hparams, length, run_name1='', run_name2='', start_token=No
                 w2 = 1 - w1
                 # print("**" + str(w1)
             
-            next_outputs = step(hparams, prev[:, tf.newaxis], past=past, w1=w1, w2=w2)
+            next_outputs = step(hparams, prev[:, tf.newaxis], past=past)
             #logits = next_outputs['logits'][:, -1, :] / tf.to_float(temperature)
             # if top_p > 0.0:
             #     logits = top_p_logits(logits, p=top_p)

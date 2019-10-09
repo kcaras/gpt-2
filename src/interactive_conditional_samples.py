@@ -10,11 +10,11 @@ import model, sample, encoder, create_graphs
 
 def interact_model(
     model_name='117M',
-    run_name='cornell_supreme',
+    run_name='brown_romance',
     seed=None,
     nsamples=1,
     batch_size=1,
-    length=None,
+    length=20,
     temperature=1,
     top_k=0,
     top_p=0.0
@@ -65,8 +65,8 @@ def interact_model(
             run_name=run_name
         )
 
-        saver = tf.train.Saver()
-        ckpt = tf.train.latest_checkpoint(os.path.join('models', model_name))
+        saver = tf.train.Saver([v for v in tf.all_variables() if run_name in v.name])
+        ckpt = tf.train.latest_checkpoint(os.path.join('checkpoint', run_name))
         saver.restore(sess, ckpt)
 
         while True:
@@ -87,10 +87,11 @@ def interact_model(
                     print(text)
             print("=" * 80)
 
+
 def print_combined_sentences(
     model_name='117M',
-    run_name1='scifi',
-    run_name2='cornell_supreme',
+    run_name1='brown_romance',
+    run_name2='scifi',
     seed=None,
     nsamples=1,
     batch_size=1,
@@ -98,17 +99,17 @@ def print_combined_sentences(
     temperature=1,
     top_k=40,
     top_p=0.0,
-    weight1=0.5,
-    weight2=0.5,
+    weight1=0.0,
+    weight2=1.0,
     use_random=False,
     use_swap=False,
     use_fifty_one=False,
     debug=True,
     logits_used=0,
-    ex_num='ex_sentence',
+    ex_num='ex_sent_start',
     display_logits=True,
     display_combined=False,
-    repeat=10
+    repeat=5
 ):
     """
     Run the sample_model
@@ -151,6 +152,7 @@ def print_combined_sentences(
     losses2 = []
     all_text = []
     for cnt in range(repeat):
+        raw_text = ' '.join(all_text).replace('\n', '').replace('<|endoftext|>', '')
         with tf.Session(graph=tf.Graph()) as sess:
             np.random.seed(seed)
             tf.set_random_seed(seed)
@@ -241,7 +243,6 @@ def print_combined_sentences(
                     print(sample_str)
                     print(text)
                 #raw_text = ''
-        raw_text = ' '.join(all_text).replace('\n', '').replace('<|endoftext|>', '')
 
         # print("*****{}****".format(type(losses1[0])))
         # print("*****{}****".format(losses1[0].shape))

@@ -37,10 +37,15 @@ def rename(checkpoint_dir, replace_from, replace_to, add_prefix, dry_run):
 
 
 def main():
-    checkpoint_dir = '/home/twister/Documents/caras_humor/gpt-2/checkpoint/brown_romance'
-    replace_from = None
-    replace_to = None
-    add_prefix = 'brown_romance/'
+    #brown_romance/h0/attn/c_attn/b
+    run_name1 = 'brown_romance'
+    run_name2 = 'scifi'
+    checkpoint_dir = '/media/twister/04dc1255-e775-4227-9673-cea8d37872c7/humor_gen/caras_humor/gpt-2/checkpoint/{}'.format(run_name1)
+    replace_from = 'model/'
+    replace_to = '{}/'.format(run_name1 )
+    add_prefix = None
+    #cornell_supreme/h0/attn/c_attn/b
+    #add_prefix = '{}/'.format(run_name)
     dry_run = True
 
     # try:
@@ -75,3 +80,4 @@ def main():
 if __name__ == '__main__':
     main()
     #main(sys.argv[1:])
+

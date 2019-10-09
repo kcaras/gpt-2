@@ -73,6 +73,38 @@ def get_finetuned_L1(run_name, reuse=tf.AUTO_REUSE):
                     out_f.write('{}   {}\n'.format(scope, sess.run(normed)))
 
 
-if __name__ == '__main__':
-    l1('cornell_supreme', '117M')
+def compare_l1(run_name1, original):
+    dir = '/media/twister/04dc1255-e775-4227-9673-cea8d37872c7/humor_gen/caras_humor/gpt-2/l1_values/{}_t2.txt'
+    f1 = open(dir.format(run_name1), 'r', encoding='utf-8')
+    lines1 = f1.readlines()
+    f1.close()
+    # forig = open(dir.format(original), 'r', encoding='utf-8')
+    # olines = forig.readlines()
+    # forig.close()
+    # od = {}
+    fd = {}
+    for line in lines1[1:]:
+        split = line.strip().split()
+        var_name = split[0]
+        l1 = float(split[1])
+        fd[var_name.replace('{}/'.format(run_name1), '')] = l1
 
+    # for line in olines:
+    #     split = line.strip().split()
+    #     var_name = split[0]
+    #     l1 = float(split[1])
+    #     od[var_name.replace('model/', '')] = l1
+
+    dsum = 0
+    for vname in fd:
+        val = fd[vname]
+        #val = abs(od[vname] - fd[vname])
+        #print('{}  diff --> {}'.format(vname, val))
+        dsum += val
+    print('{} total diff: {}'.format(run_name1, dsum))
+
+if __name__ == '__main__':
+    #l1('cornell_supreme', '117M')
+    names = ['cornell_supreme', 'brown_romance', 'cornell_movies']
+    for n in names:
+        compare_l1(n, '117M')

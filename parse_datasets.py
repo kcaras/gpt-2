@@ -3,6 +3,16 @@ import random
 import os, csv
 
 
+def parse_kdrama():
+    kdir = '/home/twister/Dropbox (GaTech)/Chicken/Datasets/Korean_drama_recaps'
+    fout = open('kdrama.txt', 'w', encoding='utf-8')
+    for i in range(1, 4):
+        fin = open('{}/cleaned_kdrama_{}.txt'.format(kdir, i), 'r', encoding='utf-8')
+        fout.write(fin.read().replace('<EOS>', ' '))
+        fin.close()
+    fout.close()
+
+
 def create_change_var():
     f = open('/media/twister/04dc1255-e775-4227-9673-cea8d37872c7/humor_gen/caras_humor/gpt-2/trained_vars.txt', 'r', encoding='utf-8')
     lines = f.readlines()
@@ -110,4 +120,4 @@ if __name__ == '__main__':
     # gpt2.download_gpt2(model_name=model_name)   # model is saved into current directory under /models/117M_Romance_Supreme/
     #clean_reddit_jokes()
     #produce_shakespere()
-    create_change_var()
+    parse_kdrama()
