@@ -14,6 +14,7 @@ supreme_sents = 'We will now hear argument in the Cherokee Nation against Thomps
 movie_sents = 'I\'m serious, man, he\'s whacked.  He sold his own liver on the black market so he could buy new speakers. They always let felons sit in on Honors Biology? No kidding.  He\'s a criminal.  I heard he lit a state trooper on fire.  He just got out of Alcatraz... He seems like he thrives on danger. What makes you think he\'ll do it? You wanna go out with him? What about him? Unlikely, but even so, she still can\'t go out with you.  So what\'s the point? I teach her French, get to know her, dazzle her with charm and she falls in love with me.'
 scifi_sents = 'Alien envoys come to the giant space station. In the earth year 2257, a multitude of humans and non-humans gather deep in neutral space at a new station, Babylon 5. Some of them are members of the station crew, including Commander Jeffrey Sinclair, Lieutenant Commander Laurel Takashima, Security Chief Michael Garibaldi, and Medical Officer Benjamin Kyle. Others are ambassadors from major alien governments: Ambassador G\'Kar from the Narn Regime, Ambassador Delenn from the Minbari Federation, and Ambassador Londo Mollari from the Centauri Republic. Still others are refugees, smugglers, businessmen, diplomats, and travelers from a hundred worlds.'
 court2scifi = 'Calling the court to order we will hear the case of John Doe. Lawyers, what are your opening arguements. Well your honor, my client clearly is an alien. He did park his spaceship illegally. But, he moved it at ludicrous speed!'
+court2scifi1 = 'We will now hear argument in the Cherokee Nation against Thompson and Thompson against the Cherokee Nation. Mr. Miller. Well your honor, my client clearly is an alien lifeform. His spaceship was moved at ludicrous speed. Geep Gorp has no problems with the Cherokee. Why would a transflexian hate anyone?'
 def sample_model(
     model_name='117M',
     seed=None,
@@ -82,14 +83,15 @@ def sample_model(
 
 def sample_combined_models(
     model_name='117M',
-    run_name1='brown_romance',
-    run_name2='cornell_supreme',
+    run_name1='cornell_supreme',
+    run_name2='kdrama_finetune',
     seed=None,
-    nsamples=200,
+    nsamples=20,
     batch_size=1,
     length=200,
     temperature=1,
     top_k=40,
+    top_k_combined=0,
     top_p=0.0,
     weight1=0.5,
     weight2=0.5,
@@ -146,6 +148,7 @@ def sample_combined_models(
             batch_size=batch_size,
             temperature=temperature,
             top_k=top_k,
+            top_k_combined=top_k_combined,
             top_p=top_p,
             weight1=weight1,
             weight2=weight2,
@@ -161,7 +164,10 @@ def sample_combined_models(
         saver2 = tf.train.Saver([v for v in tf.all_variables() if run_name2 in v.name])
         ckpt2 = tf.train.latest_checkpoint(os.path.join('checkpoint', run_name2))
         saver2.restore(sess, ckpt2)
-        if use_fifty_one:
+        if top_k_combined > 0:
+            out_file = 'samples/{}_{}/two_pasts/static_weights/temp_{}_len_{}_p_{}_combined_k_{}_w1_{}_w2_{}.txt'.format(
+                run_name1, run_name2, temperature, str(length), top_p, top_k_combined, weight1, weight2)
+        elif use_fifty_one:
             out_file = 'samples/{}_{}/two_pasts/fifty_one_weights/rand_temp_{}_len_{}_p_{}_k_{}_w1_{}_w2_{}.txt'.format(run_name1, run_name2, temperature, str(length), top_p, top_k, weight1, weight2)
         elif use_random:
             out_file = 'samples/{}_{}/two_pasts/random_weights/rand_temp_{}_len_{}_p_{}_k_{}_w1_{}_w2_{}.txt'.format(run_name1, run_name2, temperature, str(length),
@@ -331,8 +337,8 @@ def print_logits(
 
 def print_combined_logits(
     model_name='117M',
-    run_name1='brown_romance',
-    run_name2='cornell_supreme',
+    run_name1='scifi',
+    run_name2='kdrama_finetune',
     seed=None,
     nsamples=1,
     batch_size=20,
@@ -452,7 +458,7 @@ def print_combined_logits(
                 tfile.write(' '.join(nums))
                 tfile.close()
 
-        create_graphs.create_word_chart(model_name, run_name1 , run_name2, log_dir, ex_num, logits_used, display_combined=True)
+        create_graphs.create_word_chart(model_name, run_name1 , run_name2, log_dir, ex_num, logits_used, display_combined=False)
         #f.close()
 
 def print_combined_sentences(
@@ -621,9 +627,9 @@ def print_combined_sentences(
 
 def print_logits_of_example(
     model_name='117M',
-    run_names=('brown_romance', 'cornell_supreme', 'scifi', 'cornell_movies'),
+    run_names=('brown_romance', 'cornell_supreme', 'scifi', 'cornell_movies', 'kdrama_finetune'),
     seed=None,
-    ex_num='human_court2scifi',
+    ex_num='human_romance_sents',
     batch_size=1,
     length=None,
     temperature=1,
@@ -631,7 +637,7 @@ def print_logits_of_example(
     top_p=0.0,
     use_random=False,
     use_swap=False,
-    raw_text=court2scifi
+    raw_text=romance_sents
 ):
     """
     Run the sample_model
@@ -704,4 +710,4 @@ def print_logits_of_example(
     create_graphs.create_sentence_chart_not_gen(losses, ex_num, run_names, len(sents))
 
 if __name__ == '__main__':
-    fire.Fire(print_logits_of_example)
+    fire.Fire(print_combined_logits)

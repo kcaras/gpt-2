@@ -38,15 +38,15 @@ def rename(checkpoint_dir, replace_from, replace_to, add_prefix, dry_run):
 
 def main():
     #brown_romance/h0/attn/c_attn/b
-    run_name1 = 'brown_romance'
+    run_name1 = 'cornell_supreme'
     run_name2 = 'scifi'
     checkpoint_dir = '/media/twister/04dc1255-e775-4227-9673-cea8d37872c7/humor_gen/caras_humor/gpt-2/checkpoint/{}'.format(run_name1)
-    replace_from = 'model/'
-    replace_to = '{}/'.format(run_name1 )
+    replace_from = 'cornell_supreme/'
+    replace_to = 'model/'#.format(run_name1)
     add_prefix = None
     #cornell_supreme/h0/attn/c_attn/b
     #add_prefix = '{}/'.format(run_name)
-    dry_run = True
+    dry_run = False
 
     # try:
     #     opts, args = getopt.getopt(argv, 'h', ['help=', 'checkpoint_dir=', 'replace_from=',

@@ -4,15 +4,17 @@ import model, sample, encoder
 import json
 import math
 
+markers = ['s', '.', 'D', 'o', 'v', '*', '+', 'x' '<', '>', '8']
+
 
 def create_sentence_chart(loss_dict, ex_num, run_name1, run_name2, logits_used, repeat, weight1, weight2, display_combined=True):
     combined = 'combined'
     x = ['s{}'.format(i) for i in range(len(loss_dict[combined]))]
     plt.figure(figsize=(20, 20))
     plt.title('Probs : {} {}'.format(run_name1, run_name2))
-    for loss_name in loss_dict.keys():
+    for i, loss_name in enumerate(loss_dict.keys()):
         if loss_name != combined:
-            plt.plot(x, loss_dict[loss_name], label=loss_name)
+            plt.plot(x, loss_dict[loss_name], label=loss_name, marker=markers[i])
 
     if display_combined:
         plt.plot(x, loss_dict[combined], label=combined)
@@ -29,14 +31,13 @@ def create_sentence_chart_not_gen(loss_dict, ex_num, run_names, repeat):
     x = ['s{}'.format(i) for i in range(len(loss_dict[run_names[0]]))]
     plt.figure(figsize=(20, 20))
     plt.title('Probs :')
-
-    for loss_name in loss_dict.keys():
-        plt.plot(x, loss_dict[loss_name], label=loss_name)
+    for i, loss_name in enumerate(loss_dict.keys()):
+        plt.plot(x, loss_dict[loss_name], label=loss_name, marker=markers[i])
 
     plt.legend()
     plt.savefig(
         '/home/twister/Dropbox (GaTech)/caras_graphs/{}_{}_{}.png'.format(ex_num, repeat, '{}'.format('_'.join(run_names))))
-    plt.show()
+    #plt.show()
     #plt.clf()
 
 
@@ -121,15 +122,15 @@ def create_word_chart(model_name, run_name1, run_name2, log_dir, ex_num, logits_
                 probs3.append(prob3)
     plt.figure(figsize=(20, 20))
     plt.title('Word Probabilities')
-    plt.plot(syms, probs1, label=run_name1)
-    plt.plot(syms, probs2, label=run_name2)
+    plt.plot(syms, probs1, label=run_name1, marker=markers[0])
+    plt.plot(syms, probs2, label=run_name2, marker=markers[1])
 
     if display_combined:
-        plt.plot(syms, probs3, label='combined')
+        plt.plot(syms, probs3, label='combined', marker=markers[2])
 
     plt.legend()
     plt.savefig('/home/twister/Dropbox (GaTech)/caras_graphs/{}_{}_{}_{}.png'.format(ex_num, logits_used, run_name1, run_name2))
-    plt.show()
+    #plt.show()
     plt.clf()
 
 if __name__ == '__main__':
