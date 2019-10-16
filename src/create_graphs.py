@@ -9,7 +9,7 @@ markers = ['s', '.', 'D', 'o', 'v', '*', '+', 'x' '<', '>', '8']
 
 def create_sentence_chart(loss_dict, ex_num, run_name1, run_name2, logits_used, repeat, weight1, weight2, display_combined=True):
     combined = 'combined'
-    x = ['s{}'.format(i) for i in range(len(loss_dict[combined]))]
+    x = ['s{}'.format(i) for i in range(1, len(loss_dict[combined])+1)]
     plt.figure(figsize=(20, 20))
     plt.title('Probs : {} {}'.format(run_name1, run_name2))
     for i, loss_name in enumerate(loss_dict.keys()):
@@ -22,13 +22,13 @@ def create_sentence_chart(loss_dict, ex_num, run_name1, run_name2, logits_used, 
     plt.legend()
     plt.savefig(
         '/home/twister/Dropbox (GaTech)/caras_graphs/{}_{}_{}_{}_{}_{}_{}.png'.format(ex_num, repeat, logits_used, run_name1, run_name2, weight1, weight2))
-    plt.show()
+    #plt.show()
     #plt.clf()
 
 
 def create_sentence_chart_not_gen(loss_dict, ex_num, run_names, repeat):
 
-    x = ['s{}'.format(i) for i in range(len(loss_dict[run_names[0]]))]
+    x = ['s{}'.format(i) for i in range(1, len(loss_dict[run_names[0]])+1)]
     plt.figure(figsize=(20, 20))
     plt.title('Probs :')
     for i, loss_name in enumerate(loss_dict.keys()):
@@ -39,6 +39,7 @@ def create_sentence_chart_not_gen(loss_dict, ex_num, run_names, repeat):
         '/home/twister/Dropbox (GaTech)/caras_graphs/{}_{}_{}.png'.format(ex_num, repeat, '{}'.format('_'.join(run_names))))
     #plt.show()
     #plt.clf()
+
 
 
 
