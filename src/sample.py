@@ -12,11 +12,22 @@ inc = True
 
 
 def pick_top_k_combined(logits, logits1, logits2, k):
-    picks0 = top_k_logits(logits, k//3)
-    picks1 = top_k_logits(logits1, k//3)
-    picks2 = top_k_logits(logits2, k//3)
-    return picks0 + picks1 + picks2
+    picks0 = top_k_logits(logits, k)
+    picks1 = top_k_logits(logits1, k)
+    picks2 = top_k_logits(logits2, k)
+    randy = random.randint(0, 3)
+    if randy == 0.0:
+        return picks0
+    elif randy == 1.0:
+        return picks1
+    else:
+        return picks2
+    #return picks0 + picks1 + picks2
 
+def top_k_minus_vanilla(logits, vanilla, k):
+    picks0 = top_k_logits(logits, k)
+    picks1 = top_k_logits(vanilla, k)
+    return picks0 - vanilla
 
 def top_k_logits(logits, k):
     if k == 0:
@@ -193,7 +204,7 @@ def sample_sequence(*, hparams, length, start_token=None, batch_size=None, conte
 
 
 
-def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', start_token=None, batch_size=None, context=None, temperature=1, top_k=0, top_p=0.0, top_k_combined=0, weight1=0.5, weight2=0.5, use_random=False, use_swap=False, use_f1=False, inc=False, use_fifty_one=True, debug=True):
+def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', start_token=None, batch_size=None, context=None, temperature=1, top_k=0, top_p=0.0, top_k_combined=0, weight1=0.5, weight2=0.5, use_random=False, use_swap=False, use_f1=False, inc=False, use_fifty_one=True, debug=True, use_vanilla=False):
     # if weight1 >= 1.0:
     #     inc = False
     global w1
@@ -206,20 +217,34 @@ def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', sta
         assert context is None, 'Specify exactly one of start_token and context!'
         context = tf.fill([batch_size, 1], start_token)
 
-    def step(hparams, tokens, past1=None, past2=None, we1=weight1, we2=weight2):
+    def step(hparams, tokens, past1=None, past2=None, past_vanilla=None, we1=weight1, we2=weight2):
         lm_output = model.combined_model(hparams=hparams, scope1=run_name1, scope2=run_name2, X=tokens, past1=past1, past2=past2, reuse=tf.AUTO_REUSE, weight1=we1, weight2=we2)
         logits = lm_output['logits'][:, :, :hparams.n_vocab]
         presents1 = lm_output['present1']
         presents1.set_shape(model.past_shape(hparams=hparams, batch_size=batch_size))
         presents2 = lm_output['present2']
         presents2.set_shape(model.past_shape(hparams=hparams, batch_size=batch_size))
+        #if use_vanilla:
+        lm_vanilla = model.model(hparams=hparams, X=tokens, past=past_vanilla, reuse=tf.AUTO_REUSE)
+        presents_vanilla = lm_output['present']
+        presents_vanilla.set_shape(model.past_shape(hparams=hparams, batch_size=batch_size))
         return {
             'logits': logits,
-            'logits1': lm_output['logits1'],
-            'logits2': lm_output['logits2'],
+            'logits1': lm_output['logits1'][:, :, :hparams.n_vocab],
+            'logits2': lm_output['logits2'][:, :, :hparams.n_vocab],
+            'logits_vanilla': lm_vanilla[:, :, :hparams.n_vocab],
             'presents1': presents1,
             'presents2': presents2,
+            'presents_vanilla': presents_vanilla
         }
+        # else:
+        #     return {
+        #         'logits': logits,
+        #         'logits1': lm_output['logits1'][:, :, :hparams.n_vocab],
+        #         'logits2': lm_output['logits2'][:, :, :hparams.n_vocab],
+        #         'presents1': presents1,
+        #         'presents2': presents2,
+        #     }
 
     with tf.name_scope('sample_sequence'):
         # Don't feed the last context token -- leave that to the loop below
@@ -227,7 +252,7 @@ def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', sta
         # rather than leaving the last token transformer calculation to the while loop.
         context_output = step(hparams, context[:, :-1])
 
-        def body(past1, past2, prev, output):
+        def body(past1, past2, past_vanilla, prev, output):
             global inc
             global change
             global w1
@@ -264,6 +289,10 @@ def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', sta
 
             if top_p > 0.0:
                 logits = top_p_logits_combined(next_outputs, temperature, p=top_p)
+            elif use_vanilla:
+                logits_vanilla = next_outputs['logits_vanilla'][:, -1, :] / tf.to_float(temperature)
+                logits = top_k_minus_vanilla(logits, logits_vanilla, k=top_k)
+
             elif top_k_combined > 0.0:
                 logits = pick_top_k_combined(logits, logits1, logits2, top_k)
             else:
@@ -276,10 +305,11 @@ def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', sta
 
             samples = tf.multinomial(logits, num_samples=1, output_dtype=tf.int32)
             return [
-                tf.concat([past1, next_outputs['presents1']], axis=-2),
-                tf.concat([past2, next_outputs['presents2']], axis=-2),
-                tf.squeeze(samples, axis=[1]),
-                tf.concat([output, samples], axis=1),
+                    tf.concat([past1, next_outputs['presents1']], axis=-2),
+                    tf.concat([past2, next_outputs['presents2']], axis=-2),
+                    tf.concat([past2, next_outputs['presents_vanilla']], axis=-2),
+                    tf.squeeze(samples, axis=[1]),
+                    tf.concat([output, samples], axis=1),
             ]
 
         def cond(*args):
@@ -291,10 +321,12 @@ def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', sta
             loop_vars=[
                 context_output['presents1'],
                 context_output['presents2'],
+                context_output['presents_vanilla'],
                 context[:, -1],
                 context,
             ],
             shape_invariants=[
+                tf.TensorShape(model.past_shape(hparams=hparams, batch_size=batch_size)),
                 tf.TensorShape(model.past_shape(hparams=hparams, batch_size=batch_size)),
                 tf.TensorShape(model.past_shape(hparams=hparams, batch_size=batch_size)),
                 tf.TensorShape([batch_size]),
@@ -306,7 +338,7 @@ def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', sta
         return tokens
 
 
-def return_logits(*, hparams, run_name='', start_token=None, batch_size=None, context=None, temperature=1, top_k=0, top_p=0.0, use_random=True, use_swap=False):
+def return_logits(*, hparams, run_name='', start_token=None, batch_size=None, context=None, temperature=1, top_k_combined=0, top_k=0, top_p=0.0, use_random=True, use_swap=False):
 
 
     if start_token is None:
@@ -343,12 +375,6 @@ def return_logits(*, hparams, run_name='', start_token=None, batch_size=None, co
                 # print("**" + str(w1)
             
             next_outputs = step(hparams, prev[:, tf.newaxis], past=past)
-            #logits = next_outputs['logits'][:, -1, :] / tf.to_float(temperature)
-            # if top_p > 0.0:
-            #     logits = top_p_logits(logits, p=top_p)
-            # else:
-            #     logits = top_k_logits(logits, k=top_k)
-            # samples = tf.multinomial(logits, num_samples=1, output_dtype=tf.int32)
             return [
                 next_outputs['logits']
             ]
@@ -356,28 +382,14 @@ def return_logits(*, hparams, run_name='', start_token=None, batch_size=None, co
         def cond(*args):
             return True
         out = body(context_output['presents'], context[:, -1], context)
-        # _, _, tokens = tf.while_loop(
-        #     cond=cond, body=body,
-        #     maximum_iterations=length,
-        #     loop_vars=[
-        #         context_output['presents'],
-        #         context[:, -1],
-        #         context,
-        #     ],
-        #     shape_invariants=[
-        #         tf.TensorShape(model.past_shape(hparams=hparams, batch_size=batch_size)),
-        #         tf.TensorShape([batch_size]),
-        #         tf.TensorShape([batch_size, None]),
-        #     ],
-        #     back_prop=False,
-        # )
+
         return out
 
 
 def return_combined_logits(*, hparams, length, run_name1='', run_name2='',
-                           start_token=None, batch_size=None, context=None, temperature=1, top_k=0, top_p=0.0,
+                           start_token=None, batch_size=None, context=None, temperature=1, top_k=0, top_k_combined=0, top_p=0.0,
                            weight1=0.5, weight2=0.5, use_random=False, use_swap=False, use_f1=False, inc=False,
-                           use_fifty_one=True, debug=True, logits_used=0, display_logits=False):
+                           use_fifty_one=True, debug=True, logits_used=0, display_logits=False, use_vanilla=False):
     # if weight1 >= 1.0:
     #     inc = False
     global w1
@@ -390,19 +402,25 @@ def return_combined_logits(*, hparams, length, run_name1='', run_name2='',
         assert context is None, 'Specify exactly one of start_token and context!'
         context = tf.fill([batch_size, 1], start_token)
 
-    def step(hparams, tokens, past1=None, past2=None, we1=weight1, we2=weight2):
+    def step(hparams, tokens, past1=None, past2=None, past_vanilla=None, we1=weight1, we2=weight2):
         lm_output = model.combined_model(hparams=hparams, scope1=run_name1, scope2=run_name2, X=tokens, past1=past1, past2=past2, reuse=tf.AUTO_REUSE, weight1=we1, weight2=we2)
         logits = lm_output['logits'][:, :, :hparams.n_vocab]
         presents1 = lm_output['present1']
         presents1.set_shape(model.past_shape(hparams=hparams, batch_size=batch_size))
         presents2 = lm_output['present2']
         presents2.set_shape(model.past_shape(hparams=hparams, batch_size=batch_size))
+        #if use_vanilla:
+        lm_vanilla = model.model(hparams=hparams, X=tokens, past=past_vanilla, reuse=tf.AUTO_REUSE)
+        presents_vanilla = lm_output['present']
+        presents_vanilla.set_shape(model.past_shape(hparams=hparams, batch_size=batch_size))
         return {
             'logits': logits,
             'logits1': lm_output['logits1'][:, :, :hparams.n_vocab],
             'logits2': lm_output['logits2'][:, :, :hparams.n_vocab],
+            'logits_vanilla': lm_vanilla[:, :, :hparams.n_vocab],
             'presents1': presents1,
             'presents2': presents2,
+            'presents_vanilla': presents_vanilla
         }
 
     with tf.name_scope('sample_sequence'):
@@ -446,8 +464,9 @@ def return_combined_logits(*, hparams, length, run_name1='', run_name2='',
 
             logits1 = next_outputs['logits1'][:, -1, :]  / tf.to_float(temperature)
             logits2 = next_outputs['logits2'][:, -1, :]  / tf.to_float(temperature)
-
-            if logits_used == 0:
+            if top_k_combined > 0:
+                lu = logits
+            elif logits_used == 0:
                 lu = logits
             elif logits_used == 1:
                 lu = logits1
@@ -471,7 +490,13 @@ def return_combined_logits(*, hparams, length, run_name1='', run_name2='',
                         'logits2': tf.nn.softmax(next_outputs['logits2'])[:, -1, :] / tf.to_float(temperature),
                         'logits': logits
                     }
-                logits = top_k_logits(lu, k=top_k)
+                if top_k_combined > 0.0:
+                    logits = pick_top_k_combined(logits, logits1, logits2, top_k)
+                elif use_vanilla:
+                    logits_vanilla = next_outputs['logits_vanilla'][:, -1, :] / tf.to_float(temperature)
+                    logits = top_k_minus_vanilla(logits, logits_vanilla, k=top_k)
+                else:
+                    logits = top_k_logits(lu, k=top_k)
 
                 #if debug:
                     #logits1_idxs = top_k_logits(logits1, k=top_k)
@@ -484,6 +509,7 @@ def return_combined_logits(*, hparams, length, run_name1='', run_name2='',
             return [
                 tf.concat([past1, next_outputs['presents1']], axis=-2),
                 tf.concat([past2, next_outputs['presents2']], axis=-2),
+                tf.concat([past2, next_outputs['presents_vanilla']], axis=-2),
                 tf.squeeze(samples, axis=[1]),
                 tf.concat([output, samples], axis=1),
                 log
