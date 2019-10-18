@@ -91,8 +91,8 @@ def interact_model(
 
 def print_combined_sentences(
     model_name='117M',
-    run_name1='kdrama_finetune',
-    run_name2='cornell_supreme',
+    run_name1='cornell_supreme',
+    run_name2='scifi',
     seed=None,
     nsamples=1,
     batch_size=1,
@@ -101,14 +101,14 @@ def print_combined_sentences(
     top_k=40,
     top_k_combined=40,
     top_p=0.0,
-    weight1=0.3,
-    weight2=0.7,
+    weight1=0.5,
+    weight2=0.5,
     use_random=False,
     use_swap=False,
     use_fifty_one=False,
     debug=True,
     logits_used=0,
-    ex_num='ex_average_gen',
+    ex_num='ex_average_coin_40',
     display_logits=True,
     display_combined=False,
     repeat=10

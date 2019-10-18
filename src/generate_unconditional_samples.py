@@ -86,21 +86,22 @@ def sample_model(
 
 def sample_combined_models(
     model_name='117M',
-    run_name1='cornell_supreme',
-    run_name2='kdrama_finetune',
+    run_name1='brown_romance',
+    run_name2='cornell_supreme',
     seed=None,
-    nsamples=20,
+    nsamples=5,
     batch_size=1,
     length=200,
     temperature=1,
     top_k=40,
-    top_k_combined=30,
+    top_k_combined=0,
     top_p=0.0,
-    weight1=0.3,
-    weight2=0.7,
+    weight1=0.5,
+    weight2=0.5,
     use_random=False,
     use_swap=False,
     use_fifty_one=False,
+    use_vanilla=True,
     debug=False
 ):
     """
@@ -158,7 +159,8 @@ def sample_combined_models(
             use_random=use_random,
             use_swap=use_swap,
             use_fifty_one=use_fifty_one,
-            debug=debug
+            debug=debug,
+            use_vanilla=use_vanilla
         )[:, 1:]
 
         saver1 = tf.train.Saver([v for v in tf.all_variables() if run_name1 in v.name])
@@ -167,8 +169,14 @@ def sample_combined_models(
         saver2 = tf.train.Saver([v for v in tf.all_variables() if run_name2 in v.name])
         ckpt2 = tf.train.latest_checkpoint(os.path.join('checkpoint', run_name2))
         saver2.restore(sess, ckpt2)
+        ckpt3 = tf.train.latest_checkpoint(os.path.join('models', model_name))
+        saver3 = tf.train.Saver([v for v in tf.all_variables() if 'model' in v.name])
+        saver3.restore(sess, ckpt3)
         if top_k_combined > 0:
             out_file = 'samples/{}_{}/two_pasts/static_weights/temp_{}_len_{}_p_{}_combined_k_{}_w1_{}_w2_{}.txt'.format(
+                run_name1, run_name2, temperature, str(length), top_p, top_k_combined, weight1, weight2)
+        elif use_vanilla:
+            out_file = 'samples/{}_{}/two_pasts/static_weights/vanilla_temp_{}_len_{}_p_{}_top_k_{}_w1_{}_w2_{}.txt'.format(
                 run_name1, run_name2, temperature, str(length), top_p, top_k_combined, weight1, weight2)
         elif use_fifty_one:
             out_file = 'samples/{}_{}/two_pasts/fifty_one_weights/rand_temp_{}_len_{}_p_{}_k_{}_w1_{}_w2_{}.txt'.format(run_name1, run_name2, temperature, str(length), top_p, top_k, weight1, weight2)
@@ -555,5 +563,5 @@ def print_logits_of_example(
 
 
 if __name__ == '__main__':
-    fire.Fire(print_logits_of_example)
+    fire.Fire(sample_combined_models)
 
