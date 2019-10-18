@@ -101,7 +101,7 @@ def sample_combined_models(
     use_random=False,
     use_swap=False,
     use_fifty_one=False,
-    use_vanilla=True,
+    use_vanilla=False,
     debug=False
 ):
     """
@@ -161,7 +161,7 @@ def sample_combined_models(
             use_fifty_one=use_fifty_one,
             debug=debug,
             use_vanilla=use_vanilla
-        )[:, 1:]
+        )
 
         saver1 = tf.train.Saver([v for v in tf.all_variables() if run_name1 in v.name])
         ckpt1 = tf.train.latest_checkpoint(os.path.join('checkpoint', run_name1))
@@ -181,8 +181,7 @@ def sample_combined_models(
         elif use_fifty_one:
             out_file = 'samples/{}_{}/two_pasts/fifty_one_weights/rand_temp_{}_len_{}_p_{}_k_{}_w1_{}_w2_{}.txt'.format(run_name1, run_name2, temperature, str(length), top_p, top_k, weight1, weight2)
         elif use_random:
-            out_file = 'samples/{}_{}/two_pasts/random_weights/rand_temp_{}_len_{}_p_{}_k_{}_w1_{}_w2_{}.txt'.format(run_name1, run_name2, temperature, str(length),
-                                                                                top_p, top_k, weight1, weight2)
+            out_file = 'samples/{}_{}/two_pasts/random_weights/rand_temp_{}_len_{}_p_{}_k_{}_w1_{}_w2_{}.txt'.format(run_name1, run_name2, temperature, str(length), top_p, top_k, weight1, weight2)
         elif use_swap:
             out_file = 'samples/{}_{}/two_pasts/swap_weights/swap_temp_{}_len_{}_p_{}_k_{}_w1_{}_w2_{}.txt'.format(run_name1,
                                                                                                            run_name2,
@@ -192,7 +191,7 @@ def sample_combined_models(
                                                                                                            weight1,
                                                                                                            weight2)
         else:
-            out_file = 'samples/{}_{}/two_pasts/static_weights/temp_{}_len_{}_p_{}_k_{}_w1_{}_w2_{}.txt'.format(run_name1, run_name2,temperature, str(length), top_p, top_k, weight1, weight2)
+            out_file = 'samples/{}_{}/two_pasts/static_weights/mxtst_temp_{}_len_{}_p_{}_k_{}_w1_{}_w2_{}.txt'.format(run_name1, run_name2,temperature, str(length), top_p, top_k, weight1, weight2)
         f = open(out_file, 'w', encoding='utf-8')
         #tester = open('testy_gen.txt', 'w', encoding='utf-8')
 
@@ -205,15 +204,21 @@ def sample_combined_models(
                 '/media/twister/04dc1255-e775-4227-9673-cea8d37872c7/humor_gen/caras_humor/gpt-2/logs')
             writer.add_graph(sess.graph)
             out = sess.run(output)
+            
+            print('\n**************************\n')
+            #print(type(mx))
+            #print(mx)
             cnt += 1
             for i in range(batch_size):
                 generated += batch_size
-                text = enc.decode(out[i])
-                sample_str = '\n' + "=" * 40 + " SAMPLE " + str(generated) + " " + "=" * 40 + '\n'
-                print(sample_str)
-                print(text)
-                f.write(sample_str)
-                f.write(text)
+                #text = enc.decode(out[i])
+                #sample_str = '\n' + "=" * 40 + " SAMPLE " + str(generated) + " " + "=" * 40 + '\n'
+               # print(sample_str)
+                print(type(mx))
+                print(mx)
+               # print(text)
+               # f.write(sample_str)
+               # f.write(text)
             f.close()
         else:
             while nsamples == 0 or generated < nsamples:
@@ -226,8 +231,11 @@ def sample_combined_models(
                 # tester_body = open('testy_body.txt', 'a', encoding='utf-8')
                 # tester_body.write('About to call run\n')
                 # tester_body.close()
-                out = sess.run(output)
+                out, mx = sess.run(output)
+                out = out[:, 1:]
                 cnt += 1
+                print(type(mx))
+                print(mx)
                 for i in range(batch_size):
                     generated += batch_size
                     text = enc.decode(out[i])
