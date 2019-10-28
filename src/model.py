@@ -176,7 +176,7 @@ def model(hparams, X, past=None, scope='model', reuse=tf.AUTO_REUSE):
         return results
 
 
-def combined_model(hparams, X, past1=None, past2=None, scope1='brown_romance', scope2='cornell_supreme', reuse=tf.AUTO_REUSE, weight1=0.6, weight2=0.4):
+def combined_model(hparams, X, past1=None, past2=None, scope1='brown_romance', scope2='cornell_supreme', reuse=tf.AUTO_REUSE, weight1=0.5, weight2=0.5):
     results = {}
     with tf.variable_scope(scope1, reuse=reuse):
         batch1, sequence1 = shape_list(X)

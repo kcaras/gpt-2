@@ -41,8 +41,6 @@ def create_sentence_chart_not_gen(loss_dict, ex_num, run_names, repeat):
     #plt.clf()
 
 
-
-
 def create_word_chart(model_name, run_name1, run_name2, log_dir, ex_num, logits_used, display_combined=True):
     enc = encoder.get_encoder(model_name)
     text_path = '{}/{}/{}/{}_{}/text.txt'.format(log_dir, ex_num, logits_used, run_name1, run_name2)
@@ -133,6 +131,34 @@ def create_word_chart(model_name, run_name1, run_name2, log_dir, ex_num, logits_
     plt.savefig('/home/twister/Dropbox (GaTech)/caras_graphs/{}_{}_{}_{}.png'.format(ex_num, logits_used, run_name1, run_name2))
     #plt.show()
     plt.clf()
+
+
+def create_word_chart_many_sents(model_name, run_name1, run_name2, ex_num, logits_dict, logits_used, display_combined=True):
+    enc = encoder.get_encoder(model_name)
+    for cnt in logits_dict.keys():
+        syms = []
+        encoded = logits_dict[cnt]['nums']
+        for t, num in enumerate(encoded):
+            sym = enc.decoder[num]
+            sym = bytearray([enc.byte_decoder[s] for s in sym]).decode('utf-8')
+            sym = sym.strip()
+            if sym in syms:
+                while sym in syms:
+                    sym += ' '
+            syms.append(sym)
+
+        plt.figure(figsize=(20, 20))
+        plt.title('Word Probabilities')
+        plt.plot(syms, logits_dict[cnt]['logits1'], label=run_name1, marker=markers[0])
+        plt.plot(syms, logits_dict[cnt]['logits2'], label=run_name2, marker=markers[1])
+
+        if display_combined:
+            plt.plot(syms, logits_dict[cnt]['logits0'], label='combined', marker=markers[2])
+
+        plt.legend()
+        plt.savefig('/home/twister/Dropbox (GaTech)/caras_graphs/{}_sent_{}_{}_{}_{}.png'.format(ex_num, cnt, logits_used, run_name1, run_name2))
+        #plt.show()
+        plt.clf()
 
 if __name__ == '__main__':
     model_name = '117M'

@@ -89,12 +89,12 @@ def sample_combined_models(
     run_name1='brown_romance',
     run_name2='cornell_supreme',
     seed=None,
-    nsamples=5,
+    nsamples=2,
     batch_size=1,
     length=200,
     temperature=1,
     top_k=40,
-    top_k_combined=0,
+    top_k_combined=0.0,
     top_p=0.0,
     weight1=0.5,
     weight2=0.5,
@@ -135,13 +135,6 @@ def sample_combined_models(
     elif length > hparams.n_ctx:
         raise ValueError("Can't get samples longer than window size: %s" % hparams.n_ctx)
 
-    # with tf.variable_scope(run_name1):
-    #     en_fr_model = create_model(...)
-    # with tf.variable_scope(run_name2):
-    #     fr_en_model = create_model(...)
-    # tester_body = open('testy_body.txt', 'a', encoding='utf-8')
-    # tester_body.write('calling sample_sequence\n')
-    # tester_body.close()
     with tf.Session(graph=tf.Graph()) as sess:
         np.random.seed(seed)
         tf.set_random_seed(seed)
@@ -191,51 +184,32 @@ def sample_combined_models(
                                                                                                            weight1,
                                                                                                            weight2)
         else:
-            out_file = 'samples/{}_{}/two_pasts/static_weights/mxtst_temp_{}_len_{}_p_{}_k_{}_w1_{}_w2_{}.txt'.format(run_name1, run_name2,temperature, str(length), top_p, top_k, weight1, weight2)
+            out_file = 'samples/{}_{}/two_pasts/static_weights/temp_{}_len_{}_p_{}_k_{}_w1_{}_w2_{}.txt'.format(run_name1, run_name2,temperature, str(length), top_p, top_k, weight1, weight2)
         f = open(out_file, 'w', encoding='utf-8')
-        #tester = open('testy_gen.txt', 'w', encoding='utf-8')
 
-        #testLines = []
         cnt = 0
         generated = 0
         if debug:
-            #merged = tf.summary.merge_all()
             writer = tf.summary.FileWriter(
                 '/media/twister/04dc1255-e775-4227-9673-cea8d37872c7/humor_gen/caras_humor/gpt-2/logs')
             writer.add_graph(sess.graph)
             out = sess.run(output)
-            
-            print('\n**************************\n')
-            #print(type(mx))
-            #print(mx)
+
             cnt += 1
             for i in range(batch_size):
                 generated += batch_size
                 #text = enc.decode(out[i])
                 #sample_str = '\n' + "=" * 40 + " SAMPLE " + str(generated) + " " + "=" * 40 + '\n'
                # print(sample_str)
-                print(type(mx))
-                print(mx)
                # print(text)
                # f.write(sample_str)
                # f.write(text)
             f.close()
         else:
             while nsamples == 0 or generated < nsamples:
-                # f = open('testy1.txt', 'a', encoding='utf-8')
-                # f.write('In generated sample\n')
-                # f.close()
-                # f = open('testy.txt', 'w', encoding='utf-8')
-                # f.write('In generated sample\n')
-                # # f.close()
-                # tester_body = open('testy_body.txt', 'a', encoding='utf-8')
-                # tester_body.write('About to call run\n')
-                # tester_body.close()
                 out, mx = sess.run(output)
                 out = out[:, 1:]
                 cnt += 1
-                print(type(mx))
-                print(mx)
                 for i in range(batch_size):
                     generated += batch_size
                     text = enc.decode(out[i])
@@ -244,15 +218,12 @@ def sample_combined_models(
                     print(text)
                     f.write(sample_str)
                     f.write(text)
-            # testLines.append('cnt: {}\n'.format(cnt))
-            # tester.writelines(testLines)
             f.close()
 
 
 def print_logits(
     model_name='117M',
-    run_name1='brown_romance',
-    run_name2='cornell_supreme',
+    run_name='brown_romance',
     seed=None,
     nsamples=15,
     batch_size=1,
@@ -296,71 +267,38 @@ def print_logits(
     elif length > hparams.n_ctx:
         raise ValueError("Can't get samples longer than window size: %s" % hparams.n_ctx)
 
-    # with tf.variable_scope(run_name1):
-    #     en_fr_model = create_model(...)
-    # with tf.variable_scope(run_name2):
-    #     fr_en_model = create_model(...)
-
     with tf.Session(graph=tf.Graph()) as sess:
         np.random.seed(seed)
         tf.set_random_seed(seed)
 
         output = sample.return_logits(
-            hparams=hparams, run_name1=run_name1, run_name2=run_name2,
-            length=length,
+            hparams=hparams, run_name=run_name,
             start_token=enc.encoder['<|endoftext|>'],
             batch_size=batch_size,
             temperature=temperature,
             top_k=top_k,
             top_p=top_p,
-            weight1=weight1,
-            weight2=weight2,
             use_random=use_random,
             use_swap=use_swap
         )
 
-        saver1 = tf.train.Saver([v for v in tf.all_variables() if run_name1 in v.name])
-        ckpt1 = tf.train.latest_checkpoint(os.path.join('checkpoint', run_name1))
+        saver1 = tf.train.Saver([v for v in tf.all_variables() if run_name in v.name])
+        ckpt1 = tf.train.latest_checkpoint(os.path.join('checkpoint', run_name))
         saver1.restore(sess, ckpt1)
-        saver2 = tf.train.Saver([v for v in tf.all_variables() if run_name2 in v.name])
-        ckpt2 = tf.train.latest_checkpoint(os.path.join('checkpoint', run_name2))
-        saver2.restore(sess, ckpt2)
-        # if use_random:
-        #     out_file = 'samples/{}_{}/two_pasts/random_weights/rand_temp_{}_len_{}_p_{}_k_{}_w1_{}_w2_{}.txt'.format(run_name1, run_name2, temperature, str(length),
-        #                                                                         top_p, top_k, weight1, weight2)
-        # elif use_swap:
-        #     out_file = 'samples/{}_{}/two_pasts/swap_weights/swap_temp_{}_len_{}_p_{}_k_{}_w1_{}_w2_{}.txt'.format(run_name1,
-        #                                                                                                    run_name2,
-        #                                                                                                    temperature,
-        #                                                                                                    str(length),
-        #                                                                                                    top_p, top_k,
-        #                                                                                                    weight1,
-        #                                                                                                    weight2)
-        # else:
-        #     out_file = 'samples/{}_{}/two_pasts/static_weights/temp_{}_len_{}_p_{}_k_{}_w1_{}_w2_{}.txt'.format(run_name1, run_name2,temperature, str(length), top_p, top_k, weight1, weight2)
-        #f = open(out_file, 'w', encoding='utf-8')
+
         generated = 0
         while nsamples == 0 or generated < nsamples:
             out = sess.run(output)
             print(out)
-            # for i in range(batch_size):
-            #     generated += batch_size
-            #     text = enc.decode(out[i])
-            #     sample_str = '\n' + "=" * 40 + " SAMPLE " + str(generated) + " " + "=" * 40 + '\n'
-            #     f.write(sample_str)
-            #     f.write(text)
-            #     print(sample_str)
-            #     print(text)
-        #f.close()
 
 
 def print_combined_logits(
     model_name='117M',
-    run_name1='scifi',
-    run_name2='kdrama_finetune',
+    run_name1='kdrama_finetune',
+    run_name2='scifi',
     seed=None,
     nsamples=1,
-    batch_size=20,
+    batch_size=10,
     length=40,
     temperature=1,
     top_k_combined=120,
@@ -372,9 +310,10 @@ def print_combined_logits(
     use_swap=False,
     use_fifty_one=False,
     debug=True,
-    logits_used=0,
-    ex_num='ex_topkcombined',
-    display_logits=True
+    logits_used=1,
+    ex_num='ex_diverge',
+    display_logits=True,
+    diverge=True
 ):
     """
     Run the sample_model
@@ -429,7 +368,8 @@ def print_combined_logits(
             use_random=use_random,
             use_swap=use_swap,
             logits_used=logits_used,
-            display_logits=display_logits
+            display_logits=display_logits,
+            diverge=diverge
         )
 
         saver1 = tf.train.Saver([v for v in tf.all_variables() if run_name1 in v.name])
@@ -452,26 +392,18 @@ def print_combined_logits(
                     for k in range(logits.shape[1]):
                         val = logits[0][k]
                         sym = enc.decoder[k]
-                        #of1.write('{},{}\n'.format(sym, val))
                         odict[str(sym)] = float(val)
                     json.dump(odict, of1)
                     of1.close()
-            # out_file = 'logs/{}_{}/logits1/{}'
             for i in range(batch_size):
                 generated += batch_size
                 text = enc.decode(out[i])
                 sample_str = '\n' + "=" * 40 + " SAMPLE " + str(generated) + " " + "=" * 40 + '\n'
-                # f.write(sample_str)
-                # f.write(text)
                 print(sample_str)
                 print(text)
                 print(out[i].shape)
                 print(out_log[0]['logits1'].shape)
-                #print(out_log[0]['logits1'][0])
-                #print(enc.decode())
                 print(out_log[0]['logits1'][0][0])
-                #print(out_log[0]['logits1_idxs'].shape)
-                #print(out_log[0]['logits1_idxs'][0])
                 text_file = '{}/{}/{}/{}_{}/text.txt'.format(log_dir, ex_num, logits_used, run_name1, run_name2)
                 tfile = open(text_file, 'w', encoding='utf-8')
                 tfile.write(text.replace('\n', '') + '\n')
@@ -480,15 +412,13 @@ def print_combined_logits(
                 tfile.close()
 
         create_graphs.create_word_chart(model_name, run_name1 , run_name2, log_dir, ex_num, logits_used, display_combined=False)
-        #f.close()
-
 
 
 def print_logits_of_example(
     model_name='117M',
-    run_names=('kdrama_finetune',),
+    run_names=('cornell_supreme', 'scifi', 'cornell_movies', 'kdrama_finetune', 'brown_romance'),
     seed=None,
-    ex_num='gen_court_kdrama_only_kdrama',
+    ex_num='gen_human_court2scifi',
     batch_size=1,
     length=None,
     temperature=1,
@@ -496,7 +426,7 @@ def print_logits_of_example(
     top_p=0.0,
     use_random=False,
     use_swap=False,
-    raw_text=kdrama_sents
+    raw_text=court2scifi
 ):
     """
     Run the sample_model

@@ -11,9 +11,9 @@ import model, sample, encoder, create_graphs
 
 def interact_model(
     model_name='117M',
-    run_name='brown_romance',
+    run_name='reddit_jokes',
     seed=None,
-    nsamples=1,
+    nsamples=3,
     batch_size=1,
     length=20,
     temperature=1,
@@ -91,15 +91,15 @@ def interact_model(
 
 def print_combined_sentences(
     model_name='117M',
-    run_name1='cornell_supreme',
-    run_name2='scifi',
+    run_name1='scifi',
+    run_name2='cornell_supreme',
     seed=None,
     nsamples=1,
     batch_size=1,
     length=25,
     temperature=1,
     top_k=40,
-    top_k_combined=40,
+    top_k_combined=0.0,
     top_p=0.0,
     weight1=0.5,
     weight2=0.5,
@@ -108,10 +108,11 @@ def print_combined_sentences(
     use_fifty_one=False,
     debug=True,
     logits_used=0,
-    ex_num='ex_average_coin_40',
+    ex_num='ex_diverge_supreme_larger_prompted',
     display_logits=True,
     display_combined=False,
-    repeat=10
+    repeat=4,
+    diverge=True
 ):
     """
     Run the sample_model
@@ -152,14 +153,21 @@ def print_combined_sentences(
     losses0 = []
     losses1 = []
     losses2 = []
-    all_text = ['The guilty employee turns it off in haste, and Jae-in appears to pardon the disruption.']
+    logits_dict = {}
+    all_text = ['We will now hear argument in the Cherokee Nation against Thompson and Thompson against the Cherokee Nation.']
+    oa = 0.0
     for cnt in range(repeat):
+        logits_dict[cnt] = {}
+        logits_dict[cnt]['logits0'] = []
+        logits_dict[cnt]['logits1'] = []
+        logits_dict[cnt]['logits2'] = []
+        logits_dict[cnt]['nums'] = []
         raw_text = ' '.join(all_text).replace('\n', '').replace('<|endoftext|>', '')
         with tf.Session(graph=tf.Graph()) as sess:
             np.random.seed(seed)
             tf.set_random_seed(seed)
             context = tf.placeholder(tf.int32, [batch_size, None])
-
+            old_av = tf.placeholder(tf.float32)
             output = sample.return_combined_logits(
                 hparams=hparams, run_name1=run_name1, run_name2=run_name2,
                 length=length + 20*cnt,
@@ -174,7 +182,9 @@ def print_combined_sentences(
                 use_random=use_random,
                 use_swap=use_swap,
                 logits_used=logits_used,
-                display_logits=display_logits
+                display_logits=display_logits,
+                diverge=diverge,
+                old_av=old_av
             )
 
             saver1 = tf.train.Saver([v for v in tf.all_variables() if run_name1 in v.name])
@@ -188,8 +198,9 @@ def print_combined_sentences(
                 # feed in sentence from before
                 context_tokens = enc.encode(raw_text)
                 #print('\nnew: {} len_context: {}\n'.format(raw_text, len(context_tokens)))
-                out_log, out = sess.run(output,feed_dict={
-                        context: [context_tokens for _ in range(batch_size)]
+                oa, out_log, out = sess.run(output,feed_dict={
+                        context: [context_tokens for _ in range(batch_size)],
+                        old_av: oa
                     })
                 out = out[:, len(context_tokens):]
                 for i in range(batch_size):
@@ -197,24 +208,34 @@ def print_combined_sentences(
                     text = enc.decode(out[i])
                     all_text.append(text)
                     nums = [int(out[i][z]) for z in range(out[i].shape[0])]
-                    probs0 = remove_min_max([out_log[max(out_log.keys())]['logits'][0][num] for num in nums])
-                    probs1 = remove_min_max([out_log[max(out_log.keys())]['logits1'][0][num] for num in nums])
-                    probs2 = remove_min_max([out_log[max(out_log.keys())]['logits2'][0][num] for num in nums])
+
+                    logits0 = [out_log[max(out_log.keys())]['logits'][0][num] for num in nums]
+                    logits1 = [out_log[max(out_log.keys())]['logits1'][0][num] for num in nums]
+                    logits2 = [out_log[max(out_log.keys())]['logits2'][0][num] for num in nums]
+
+                    probs0 = remove_min_max(logits0)
+                    probs1 = remove_min_max(logits1)
+                    probs2 = remove_min_max(logits2)
+
                     loss0 = sum(probs0) / len(probs0)
                     loss1 = sum(probs1) / len(probs1)
                     loss2 = sum(probs2) / len(probs2)
+                    if abs(loss0 - loss1) > 0.1:
+                        print('loss0: {} loss1: {}'.format(loss0, loss1))
+
                     losses0.append(loss0)
                     losses1.append(loss1)
                     losses2.append(loss2)
+
+                    logits_dict[cnt]['logits0'].extend(logits0)
+                    logits_dict[cnt]['logits1'].extend(logits1)
+                    logits_dict[cnt]['logits2'].extend(logits2)
+                    logits_dict[cnt]['nums'].extend(nums)
+
                     sample_str = '\n' + "=" * 40 + " SAMPLE " + str(generated) + " " + "=" * 40 + '\n'
-                    # f.write(sample_str)
-                    # f.write(text)
                     print(sample_str)
                     print(text)
-                #raw_text = ''
 
-        # print("*****{}****".format(type(losses1[0])))
-        # print("*****{}****".format(losses1[0].shape))
     losses_dict = {run_name1:losses1, run_name2:losses2, 'combined':losses0}
     if top_k_combined > 0:
         text_file = '/home/twister/Dropbox (GaTech)/caras_graphs/{}_{}_{}_{}_{}_{}_{}.txt'.format(ex_num, repeat,
@@ -223,20 +244,19 @@ def print_combined_sentences(
                                                                                                   weight1, weight2)
     else:
         text_file = '/home/twister/Dropbox (GaTech)/caras_graphs/{}_{}_{}_{}_{}_{}_{}.txt'.format(ex_num, repeat, logits_used, run_name1, run_name2, weight1, weight2)
+
     tfile = open(text_file, 'w', encoding='utf-8')
     all_text = [txt.replace('\n', '').replace('<|endoftext|>', '') for txt in all_text]
     tfile.write('\n'.join(all_text))
-    # nums = [str(out[i][z]) for z in range(out[i].shape[0])]
-    # tfile.write(' '.join(nums))
     tfile.close()
-    #create_graphs.create_word_chart(model_name, run_name1 , run_name2, log_dir, ex_num, logits_used, display_combined=True)
+    create_graphs.create_word_chart_many_sents(model_name, run_name1 , run_name2, ex_num, logits_dict, logits_used, display_combined=True)
     print('{} sents'.format(len(losses0)))
     if top_k_combined > 0:
         create_graphs.create_sentence_chart(losses_dict, ex_num, run_name1, run_name2, 'combined_k', repeat, weight1,
                                             weight2, display_combined=display_combined)
     else:
         create_graphs.create_sentence_chart(losses_dict, ex_num, run_name1, run_name2, logits_used, repeat, weight1, weight2, display_combined=display_combined)
-    #f.close()
+
 
 def interact_combined_model(
         model_name='117M',
