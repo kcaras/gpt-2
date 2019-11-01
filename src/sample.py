@@ -409,7 +409,7 @@ def return_logits(*, hparams, run_name='', start_token=None, batch_size=None, co
 def return_combined_logits(*, hparams, length, run_name1='', run_name2='',
                            start_token=None, batch_size=None, context=None, temperature=1, top_k=0, top_k_combined=0, top_p=0.0,
                            weight1=0.5, weight2=0.5, use_random=False, use_swap=False, use_f1=False, inc=False,
-                           use_fifty_one=True, debug=True, logits_used=0, display_logits=False, diverge=False, old_av=0.0):
+                           use_fifty_one=False, debug=True, logits_used=0, display_logits=False, diverge=False, ov1=0.0, ov2=0.0):
 
     if start_token is None:
         assert context is not None, 'Specify exactly one of start_token and context!'
@@ -438,14 +438,14 @@ def return_combined_logits(*, hparams, length, run_name1='', run_name2='',
         # rather than leaving the last token transformer calculation to the while loop.
         context_output = step(hparams, context[:, :-1])
 
-        def body(past1, past2, prev, output, wei1, wei2, old_av=0.0):
+        def body(past1, past2, prev, output, wei1, wei2, old_av1, old_av2):
             next_outputs = step(hparams, prev[:, tf.newaxis], past1=past1, past2=past2, we1=wei1, we2=wei2)
             if use_random:
                 new_weight1 = weight_random()
                 new_weight2 = 1 - new_weight1
             elif use_swap:
                 new_weight1 = 1 - wei1
-                new_weight2 = 1 - new_weight1
+                new_weight2 = wei1
             elif use_f1:
                 pass
                 # if wei1 == 1.0:
@@ -536,11 +536,13 @@ def return_combined_logits(*, hparams, length, run_name1='', run_name2='',
                     return [samples, samples1, samples2, av1, av2]
 
                 def increase_mean(samples, samples1, samples2, new_av1, new_av2):
-                    return new_av1 < new_av2
+                    
+                    return tf.math.logical_and(tf.less(new_av1, old_av1),tf.less(old_av2, new_av2))
+                    #return (new_av1 - old_av1) > 0 #and 0 > (new_av2 - old_av2)
 
                 samples, samples1, samples2, av1, av2 = tf.while_loop(
                     cond=increase_mean, body=do_sample,
-                    maximum_iterations=40,
+                    maximum_iterations=100,
                     loop_vars=[
                         samples,
                         samples1, 
@@ -555,15 +557,16 @@ def return_combined_logits(*, hparams, length, run_name1='', run_name2='',
                 samples = tf.multinomial(logits, num_samples=1, output_dtype=tf.int32)
                 sc = tf.identity(samples)
                 lc = tf.identity(logits)
-                av = tf.reduce_mean(tf.gather_nd(lc[0], sc))
-
+                av1 = tf.reduce_mean(tf.gather_nd(lc[0], sc))
+                av2 = av1
             return [
                 tf.concat([past1, next_outputs['presents1']], axis=-2),
                 tf.concat([past2, next_outputs['presents2']], axis=-2),
                 tf.squeeze(samples, axis=[1]),
                 tf.concat([output, samples], axis=1),
                 log,
-                av,
+                av1,
+                av2,
                 new_weight1,
                 new_weight2
             ]
@@ -580,9 +583,10 @@ def return_combined_logits(*, hparams, length, run_name1='', run_name2='',
         a = weight1
         b = weight2
         while i < length:
-            p1, p2, previous, o, log, av, a, b = body(p1, p2, previous, o, a, b, old_av=old_av)
+            p1, p2, previous, o, log, av1, av2, a, b = body(p1, p2, previous, o, a, b, ov1, ov2)
             out_log[i] = log
-            old_av = av
+            ov1 = av1
+            ov2 = av2
             i += 1
         # _, _, tokens = tf.while_loop(
         #     cond=cond, body=body,
@@ -599,7 +603,7 @@ def return_combined_logits(*, hparams, length, run_name1='', run_name2='',
         #     ],
         #     back_prop=False,
         # )
-        return old_av, out_log, o
+        return ov1, ov2, out_log, o
 
 
 def weight_random():

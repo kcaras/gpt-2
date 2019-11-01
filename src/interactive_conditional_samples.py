@@ -108,11 +108,11 @@ def print_combined_sentences(
     use_fifty_one=False,
     debug=True,
     logits_used=0,
-    ex_num='ex_diverge_supreme_larger_prompted',
+    ex_num='ex_diverge_after3_no_prompt',
     display_logits=True,
     display_combined=False,
-    repeat=4,
-    diverge=True
+    repeat=7,
+    diverge=False
 ):
     """
     Run the sample_model
@@ -154,8 +154,10 @@ def print_combined_sentences(
     losses1 = []
     losses2 = []
     logits_dict = {}
-    all_text = ['We will now hear argument in the Cherokee Nation against Thompson and Thompson against the Cherokee Nation.']
-    oa = 0.0
+    all_text = []
+    oa1 = 0.0
+    oa2 = 0.0
+    d = diverge
     for cnt in range(repeat):
         logits_dict[cnt] = {}
         logits_dict[cnt]['logits0'] = []
@@ -163,11 +165,14 @@ def print_combined_sentences(
         logits_dict[cnt]['logits2'] = []
         logits_dict[cnt]['nums'] = []
         raw_text = ' '.join(all_text).replace('\n', '').replace('<|endoftext|>', '')
+        if cnt > 3:
+            d=True
         with tf.Session(graph=tf.Graph()) as sess:
             np.random.seed(seed)
             tf.set_random_seed(seed)
             context = tf.placeholder(tf.int32, [batch_size, None])
-            old_av = tf.placeholder(tf.float32)
+            ov1 = tf.placeholder(tf.float32)
+            ov2 = tf.placeholder(tf.float32)
             output = sample.return_combined_logits(
                 hparams=hparams, run_name1=run_name1, run_name2=run_name2,
                 length=length + 20*cnt,
@@ -183,8 +188,9 @@ def print_combined_sentences(
                 use_swap=use_swap,
                 logits_used=logits_used,
                 display_logits=display_logits,
-                diverge=diverge,
-                old_av=old_av
+                diverge=d,
+                ov1=ov1,
+                ov2=ov2
             )
 
             saver1 = tf.train.Saver([v for v in tf.all_variables() if run_name1 in v.name])
@@ -198,9 +204,10 @@ def print_combined_sentences(
                 # feed in sentence from before
                 context_tokens = enc.encode(raw_text)
                 #print('\nnew: {} len_context: {}\n'.format(raw_text, len(context_tokens)))
-                oa, out_log, out = sess.run(output,feed_dict={
+                oa1, oa2, out_log, out = sess.run(output,feed_dict={
                         context: [context_tokens for _ in range(batch_size)],
-                        old_av: oa
+                        ov1: oa1,
+                        ov2: oa2
                     })
                 out = out[:, len(context_tokens):]
                 for i in range(batch_size):
@@ -256,7 +263,6 @@ def print_combined_sentences(
                                             weight2, display_combined=display_combined)
     else:
         create_graphs.create_sentence_chart(losses_dict, ex_num, run_name1, run_name2, logits_used, repeat, weight1, weight2, display_combined=display_combined)
-
 
 def interact_combined_model(
         model_name='117M',
