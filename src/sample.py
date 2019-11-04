@@ -409,7 +409,8 @@ def return_logits(*, hparams, run_name='', start_token=None, batch_size=None, co
 def return_combined_logits(*, hparams, length, run_name1='', run_name2='',
                            start_token=None, batch_size=None, context=None, temperature=1, top_k=0, top_k_combined=0, top_p=0.0,
                            weight1=0.5, weight2=0.5, use_random=False, use_swap=False, use_f1=False, inc=False,
-                           use_fifty_one=False, debug=True, logits_used=0, display_logits=False, diverge=False, ov1=0.0, ov2=0.0):
+                           use_fifty_one=False, debug=True, logits_used=0, display_logits=False, diverge=False, ov1=0.0, ov2=0.0,
+                           converge_after=2):
 
     if start_token is None:
         assert context is not None, 'Specify exactly one of start_token and context!'
@@ -515,6 +516,7 @@ def return_combined_logits(*, hparams, length, run_name1='', run_name2='',
                 samples = tf.multinomial(logits0, num_samples=1, output_dtype=tf.int32)
                 samples1 = tf.multinomial(logits1, num_samples=1, output_dtype=tf.int32)
                 samples2 = tf.multinomial(logits2, num_samples=1, output_dtype=tf.int32)
+
                 sc1 = tf.identity(samples1)
                 lc1 = tf.identity(logits1)
                 sc2 = tf.identity(samples2)
@@ -536,8 +538,11 @@ def return_combined_logits(*, hparams, length, run_name1='', run_name2='',
                     return [samples, samples1, samples2, av1, av2]
 
                 def increase_mean(samples, samples1, samples2, new_av1, new_av2):
-                    
-                    return tf.math.logical_and(tf.less(new_av1, old_av1),tf.less(old_av2, new_av2))
+                    com_av1 = (new_av1 + old_av1)/2
+                    com_av2 = (new_av2 + old_av2)/2
+                    return tf.math.logical_and(tf.less(new_av1, old_av1),
+                                               tf.less(old_av2, new_av2))
+                    #return tf.math.logical_and(tf.less(new_av1/com_av1, old_av1/com_av1),tf.less(old_av2/com_av2, new_av2/com_av2))
                     #return (new_av1 - old_av1) > 0 #and 0 > (new_av2 - old_av2)
 
                 samples, samples1, samples2, av1, av2 = tf.while_loop(
@@ -552,7 +557,9 @@ def return_combined_logits(*, hparams, length, run_name1='', run_name2='',
                     ],
                     back_prop=False,
                 )
-                av = av1
+                # if we did diverge, then decrement by one
+                # cnd = increase_mean(samples, samples1, samples2, av1, av2)
+                # did_diverge = tf.cond(cnd, 1, 0)
             else:
                 samples = tf.multinomial(logits, num_samples=1, output_dtype=tf.int32)
                 sc = tf.identity(samples)
@@ -568,7 +575,7 @@ def return_combined_logits(*, hparams, length, run_name1='', run_name2='',
                 av1,
                 av2,
                 new_weight1,
-                new_weight2
+                new_weight2,
             ]
 
         def cond(*args):

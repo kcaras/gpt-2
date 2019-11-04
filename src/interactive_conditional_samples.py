@@ -104,15 +104,17 @@ def print_combined_sentences(
     weight1=0.5,
     weight2=0.5,
     use_random=False,
-    use_swap=False,
+    use_swap=True,
     use_fifty_one=False,
     debug=True,
     logits_used=0,
-    ex_num='ex_diverge_after3_no_prompt',
+    ex_num='ex_converge_count',
     display_logits=True,
     display_combined=False,
-    repeat=7,
-    diverge=False
+    repeat=8,
+    use_diverge=True,
+    diverge_after=-1,
+    converge_after=2,
 ):
     """
     Run the sample_model
@@ -157,7 +159,11 @@ def print_combined_sentences(
     all_text = []
     oa1 = 0.0
     oa2 = 0.0
-    d = diverge
+
+    prev_sent_av1 = 0.0
+    prev_sent_av2 = 0.0
+    converge_count = converge_after
+    d = False
     for cnt in range(repeat):
         logits_dict[cnt] = {}
         logits_dict[cnt]['logits0'] = []
@@ -165,8 +171,13 @@ def print_combined_sentences(
         logits_dict[cnt]['logits2'] = []
         logits_dict[cnt]['nums'] = []
         raw_text = ' '.join(all_text).replace('\n', '').replace('<|endoftext|>', '')
-        if cnt > 3:
-            d=True
+        if use_diverge:
+            if converge_count == 0:
+                d=False
+                logits_used=1
+            else:
+                d=True
+
         with tf.Session(graph=tf.Graph()) as sess:
             np.random.seed(seed)
             tf.set_random_seed(seed)
@@ -175,7 +186,7 @@ def print_combined_sentences(
             ov2 = tf.placeholder(tf.float32)
             output = sample.return_combined_logits(
                 hparams=hparams, run_name1=run_name1, run_name2=run_name2,
-                length=length + 20*cnt,
+                length=length + length*cnt,
                 start_token=enc.encoder['<|endoftext|>'],
                 batch_size=batch_size,
                 temperature=temperature,
@@ -190,7 +201,8 @@ def print_combined_sentences(
                 display_logits=display_logits,
                 diverge=d,
                 ov1=ov1,
-                ov2=ov2
+                ov2=ov2,
+                converge_after=converge_after
             )
 
             saver1 = tf.train.Saver([v for v in tf.all_variables() if run_name1 in v.name])
@@ -227,8 +239,20 @@ def print_combined_sentences(
                     loss0 = sum(probs0) / len(probs0)
                     loss1 = sum(probs1) / len(probs1)
                     loss2 = sum(probs2) / len(probs2)
+
+                    # currently we want the first to decrease and second to increase
+                    # Then we switch to using the first to get the snap
+
+                    if loss1 < prev_sent_av1 and loss2 > prev_sent_av2:
+                        converge_count -= 1
+                    else:
+                        converge_count = converge_after
+
                     if abs(loss0 - loss1) > 0.1:
                         print('loss0: {} loss1: {}'.format(loss0, loss1))
+
+                    prev_sent_av1 = loss1
+                    prev_sent_av2 = loss2
 
                     losses0.append(loss0)
                     losses1.append(loss1)
@@ -243,10 +267,16 @@ def print_combined_sentences(
                     print(sample_str)
                     print(text)
 
+    print('Converge Count = {}'.format(converge_count))
     losses_dict = {run_name1:losses1, run_name2:losses2, 'combined':losses0}
     if top_k_combined > 0:
         text_file = '/home/twister/Dropbox (GaTech)/caras_graphs/{}_{}_{}_{}_{}_{}_{}.txt'.format(ex_num, repeat,
                                                                                                   'k_combined',
+                                                                                                  run_name1, run_name2,
+                                                                                                  weight1, weight2)
+    elif use_swap > 0:
+        text_file = '/home/twister/Dropbox (GaTech)/caras_graphs/{}_{}_{}_{}_{}_{}_{}.txt'.format(ex_num, repeat,
+                                                                                                  'swap',
                                                                                                   run_name1, run_name2,
                                                                                                   weight1, weight2)
     else:
