@@ -5,6 +5,7 @@ import json
 import os
 import numpy as np
 import tensorflow as tf
+from nltk import sent_tokenize
 
 from util import remove_min_max
 import model, sample, encoder, create_graphs
@@ -91,7 +92,7 @@ def interact_model(
 
 def print_combined_sentences(
     model_name='117M',
-    run_name1='scifi',
+    run_name1='reddit_jokes',
     run_name2='cornell_supreme',
     seed=None,
     nsamples=1,
@@ -104,14 +105,14 @@ def print_combined_sentences(
     weight1=0.5,
     weight2=0.5,
     use_random=False,
-    use_swap=True,
+    use_swap=False,
     use_fifty_one=False,
     debug=True,
     logits_used=0,
-    ex_num='ex_converge_count',
+    ex_num='a_kpmg_converge2',
     display_logits=True,
     display_combined=False,
-    repeat=8,
+    repeat=7,
     use_diverge=True,
     diverge_after=-1,
     converge_after=2,
@@ -164,15 +165,16 @@ def print_combined_sentences(
     prev_sent_av2 = 0.0
     converge_count = converge_after
     d = False
-    for cnt in range(repeat):
-        logits_dict[cnt] = {}
-        logits_dict[cnt]['logits0'] = []
-        logits_dict[cnt]['logits1'] = []
-        logits_dict[cnt]['logits2'] = []
-        logits_dict[cnt]['nums'] = []
+    cnt = 0
+    while cnt < repeat:
+        # logits_dict[cnt] = {}
+        # logits_dict[cnt]['logits0'] = []
+        # logits_dict[cnt]['logits1'] = []
+        # logits_dict[cnt]['logits2'] = []
+        # logits_dict[cnt]['nums'] = []
         raw_text = ' '.join(all_text).replace('\n', '').replace('<|endoftext|>', '')
         if use_diverge:
-            if converge_count == 0:
+            if converge_count <= 0:
                 d=False
                 logits_used=1
             else:
@@ -222,50 +224,71 @@ def print_combined_sentences(
                         ov2: oa2
                     })
                 out = out[:, len(context_tokens):]
+                txt_batch = ''
                 for i in range(batch_size):
                     generated += batch_size
                     text = enc.decode(out[i])
-                    all_text.append(text)
-                    nums = [int(out[i][z]) for z in range(out[i].shape[0])]
-
-                    logits0 = [out_log[max(out_log.keys())]['logits'][0][num] for num in nums]
-                    logits1 = [out_log[max(out_log.keys())]['logits1'][0][num] for num in nums]
-                    logits2 = [out_log[max(out_log.keys())]['logits2'][0][num] for num in nums]
-
-                    probs0 = remove_min_max(logits0)
-                    probs1 = remove_min_max(logits1)
-                    probs2 = remove_min_max(logits2)
-
-                    loss0 = sum(probs0) / len(probs0)
-                    loss1 = sum(probs1) / len(probs1)
-                    loss2 = sum(probs2) / len(probs2)
-
-                    # currently we want the first to decrease and second to increase
-                    # Then we switch to using the first to get the snap
-
-                    if loss1 < prev_sent_av1 and loss2 > prev_sent_av2:
-                        converge_count -= 1
-                    else:
-                        converge_count = converge_after
-
-                    if abs(loss0 - loss1) > 0.1:
-                        print('loss0: {} loss1: {}'.format(loss0, loss1))
-
-                    prev_sent_av1 = loss1
-                    prev_sent_av2 = loss2
-
-                    losses0.append(loss0)
-                    losses1.append(loss1)
-                    losses2.append(loss2)
-
-                    logits_dict[cnt]['logits0'].extend(logits0)
-                    logits_dict[cnt]['logits1'].extend(logits1)
-                    logits_dict[cnt]['logits2'].extend(logits2)
-                    logits_dict[cnt]['nums'].extend(nums)
-
+                    txt_batch += text
+                    #all_text.append(text)
                     sample_str = '\n' + "=" * 40 + " SAMPLE " + str(generated) + " " + "=" * 40 + '\n'
                     print(sample_str)
-                    print(text)
+                    print('<!> {}'.format(text))
+
+                norm_str = clean_string(txt_batch)
+                lt_arr = sent_tokenize(norm_str)
+                print('Printing Sentences')
+                sent_cnt = 0
+                while cnt < repeat and sent_cnt <= len(lt_arr) -1:
+                    sent = lt_arr[sent_cnt]
+                    sent_cnt += 1
+                    if sent[-1] in ['.', '?', '!']:
+                        logits_dict[cnt] = {}
+                        logits_dict[cnt]['logits0'] = []
+                        logits_dict[cnt]['logits1'] = []
+                        logits_dict[cnt]['logits2'] = []
+                        logits_dict[cnt]['nums'] = []
+                        nums = enc.encode(sent)
+                        print(sent)
+
+
+                        logits0 = [out_log[max(out_log.keys())]['logits'][0][num] for num in nums]
+                        logits1 = [out_log[max(out_log.keys())]['logits1'][0][num] for num in nums]
+                        logits2 = [out_log[max(out_log.keys())]['logits2'][0][num] for num in nums]
+
+                        probs0 = remove_min_max(logits0)
+                        probs1 = remove_min_max(logits1)
+                        probs2 = remove_min_max(logits2)
+                        if len(probs0) > 0:
+                            loss0 = sum(probs0) / len(probs0)
+                            loss1 = sum(probs1) / len(probs1)
+                            loss2 = sum(probs2) / len(probs2)
+
+                            # currently we want the first to decrease and second to increase
+                            # Then we switch to using the first to get the snap
+
+                            if loss1 < prev_sent_av1 and loss2 > prev_sent_av2:
+                                converge_count -= 1
+                            else:
+                                converge_count = converge_after
+                            print('Converge cnt: {}, prev1: {} av1: {} prev2 {} av2: {}'.format(converge_count, prev_sent_av1,
+                                                                                                loss1, prev_sent_av2, loss2))
+                            # if abs(loss0 - loss1) > 0.1:
+                            #     print('loss0: {} loss1: {}'.format(loss0, loss1))
+
+                            prev_sent_av1 = loss1
+                            prev_sent_av2 = loss2
+
+                            losses0.append(loss0)
+                            losses1.append(loss1)
+                            losses2.append(loss2)
+
+                            logits_dict[cnt]['logits0'] = logits0
+                            logits_dict[cnt]['logits1'] = logits1
+                            logits_dict[cnt]['logits2'] = logits2
+                            logits_dict[cnt]['nums']= nums
+                            cnt += 1
+
+                            all_text.append(sent)
 
     print('Converge Count = {}'.format(converge_count))
     losses_dict = {run_name1:losses1, run_name2:losses2, 'combined':losses0}
@@ -274,7 +297,7 @@ def print_combined_sentences(
                                                                                                   'k_combined',
                                                                                                   run_name1, run_name2,
                                                                                                   weight1, weight2)
-    elif use_swap > 0:
+    elif use_swap:
         text_file = '/home/twister/Dropbox (GaTech)/caras_graphs/{}_{}_{}_{}_{}_{}_{}.txt'.format(ex_num, repeat,
                                                                                                   'swap',
                                                                                                   run_name1, run_name2,
@@ -291,8 +314,11 @@ def print_combined_sentences(
     if top_k_combined > 0:
         create_graphs.create_sentence_chart(losses_dict, ex_num, run_name1, run_name2, 'combined_k', repeat, weight1,
                                             weight2, display_combined=display_combined)
-    else:
+    elif use_swap:
+        create_graphs.create_sentence_chart(losses_dict, ex_num, run_name1, run_name2, 'swap', repeat, weight1, weight2, display_combined=display_combined)
+    else:                                 
         create_graphs.create_sentence_chart(losses_dict, ex_num, run_name1, run_name2, logits_used, repeat, weight1, weight2, display_combined=display_combined)
+
 
 def interact_combined_model(
         model_name='117M',
@@ -400,6 +426,14 @@ def interact_combined_model(
                     print("=" * 40 + " SAMPLE " + str(generated) + " " + "=" * 40)
                     print(text)
             print("=" * 80)
+
+
+def clean_string(txt):
+    punct = ['.', '!', '?']
+    for p in punct:
+        txt = txt.replace(p, p + ' ')
+    return txt
+
 
 if __name__ == '__main__':
     fire.Fire(print_combined_sentences)

@@ -547,7 +547,7 @@ def return_combined_logits(*, hparams, length, run_name1='', run_name2='',
 
                 samples, samples1, samples2, av1, av2 = tf.while_loop(
                     cond=increase_mean, body=do_sample,
-                    maximum_iterations=100,
+                    maximum_iterations=200,
                     loop_vars=[
                         samples,
                         samples1, 
