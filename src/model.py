@@ -247,3 +247,47 @@ def combined_model(hparams, X, past1=None, past2=None, scope1='brown_romance', s
     #results['logits'] = tf.math.log_prob(tf.math.exp(results['logits1'])*weight1 + tf.math.exp(results['logits2'])*weight2 + tf.math.exp(0.00000001))
     #results['present'] = tf.math.log(tf.math.exp(results['present1'])*weight1 + tf.math.exp(results['present2'])*weight2 + tf.math.exp(0.00000001))
     return results
+
+
+def combine_x_models(hparams, X, pasts=[], scopes=['brown_romance','cornell_supreme'], reuse=tf.AUTO_REUSE, weights=[0.5,0.5]):
+    results = {}
+    for i, scope in enumerate(scopes):
+        past_ix = pasts[i]
+        ix = i + 1
+        with tf.variable_scope(scope, reuse=reuse):
+            batch1, sequence1 = shape_list(X)
+
+            wpe1 = tf.get_variable('wpe', [hparams.n_ctx, hparams.n_embd],
+                                 initializer=tf.random_normal_initializer(stddev=0.01))
+            wte1 = tf.get_variable('wte', [hparams.n_vocab, hparams.n_embd],
+                                 initializer=tf.random_normal_initializer(stddev=0.02))
+            past_length1 = 0 if past_ix is None else tf.shape(past_ix)[-2]
+            h1 = tf.gather(wte1, X) + tf.gather(wpe1, positions_for(X, past_length1))
+
+            # Transformer
+            presents1 = []
+            past_ix = tf.unstack(past_ix, axis=1) if past_ix is not None else [None] * hparams.n_layer
+            assert len(past_ix) == hparams.n_layer
+            for layer, past in enumerate(past_ix):
+                h1, present1 = block(h1, 'h%d' % layer, past=past, hparams=hparams)
+                if layer == 10:
+                    tf.add_to_collection('checkpoints1', h1)
+                presents1.append(present1)
+            results['present{}'.format(ix)] = tf.stack(presents1, axis=1)
+            h1 = norm(h1, 'ln_f')
+
+            # Language model loss.  Do tokens <n predict token n?
+            h_flat1 = tf.reshape(h1, [batch1*sequence1, hparams.n_embd])
+            logits1 = tf.matmul(h_flat1, wte1, transpose_b=True)
+            logits1 = tf.reshape(logits1, [batch1, sequence1, hparams.n_vocab])
+            results['logits{}'.format(ix)] = logits1
+
+    #results['logits'] = tf.nn.softmax(results['logits1'])*weight1 + tf.nn.softmax(results['logits2'])*weight2
+    #results['present'] = tf.nn.softmax(results['present1'])*weight1 + tf.nn.softmax(results['present2'])*weight2
+    results['logits'] = results['logits1']*weights[0]
+    for ix in range(1, len(scopes)):
+        results['logits'] = results['logits{}'.format(ix+1)]*weights[ix]
+    #results['present'] = results['present1'] #+ results['present2']
+    #results['logits'] = tf.math.log_prob(tf.math.exp(results['logits1'])*weight1 + tf.math.exp(results['logits2'])*weight2 + tf.math.exp(0.00000001))
+    #results['present'] = tf.math.log(tf.math.exp(results['present1'])*weight1 + tf.math.exp(results['present2'])*weight2 + tf.math.exp(0.00000001))
+    return results

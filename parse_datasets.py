@@ -1,6 +1,6 @@
 from nltk.corpus import brown
 import random
-import os, csv
+import os, csv, json
 
 
 def parse_kdrama():
@@ -11,6 +11,37 @@ def parse_kdrama():
         fout.write(fin.read().replace('<EOS>', ' '))
         fin.close()
     fout.close()
+
+
+def combine(data1, data2):
+    data_path1 = '/media/twister/04dc1255-e775-4227-9673-cea8d37872c7/humor_gen/caras_wang/Data/{}.txt'.format(data1)
+    data_path2 = '/media/twister/04dc1255-e775-4227-9673-cea8d37872c7/humor_gen/caras_wang/Data/{}.txt'.format(data2)
+    out_file_path = '/media/twister/04dc1255-e775-4227-9673-cea8d37872c7/humor_gen/caras_wang/Data/{}_{}.txt'.format(data1,data2)
+    f1 = open(data_path1, 'r', encoding='utf-8')
+    lines1 = f1.read()
+    f1.close()
+    f2 = open(data_path2, 'r', encoding='utf-8')
+    lines2 = f2.read()
+    f2.close()
+    out_file = open(out_file_path, 'w', encoding='utf-8')
+    out_file.write(lines1 + '\n')
+    out_file.write(lines2)
+    out_file.close()
+
+
+def parse_urban_dictionary():
+    path = '/media/twister/04dc1255-e775-4227-9673-cea8d37872c7/humor_gen/caras_wang/Data/words.json'
+    jf = open(path, 'r', encoding='utf-8')
+    #words = json.load(jf)
+    #jf.close()
+    outf_path = '/media/twister/04dc1255-e775-4227-9673-cea8d37872c7/humor_gen/caras_wang/Data/urban_dictionary.txt'
+    outf = open(outf_path, 'w', encoding='utf-8')
+    for line in jf:
+        words = json.loads(line)
+        ex = words['example']
+        outf.write(ex.replace('\n', '') + '\n')
+    outf.close()
+    jf.close()
 
 
 def create_change_var():
@@ -120,4 +151,5 @@ if __name__ == '__main__':
     # gpt2.download_gpt2(model_name=model_name)   # model is saved into current directory under /models/117M_Romance_Supreme/
     #clean_reddit_jokes()
     #produce_shakespere()
-    parse_kdrama()
+    combine('supreme', 'urban_dictionary')
+    parse_urban_dictionary()

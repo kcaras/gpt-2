@@ -4,6 +4,18 @@ import random
 import model, encoder
 import os, json
 
+def pick_top_k_fun(logits, logits1, logits2, logits_funny, k):
+    picks0 = top_k_logits(logits, k)
+    picks1 = top_k_logits(logits1, k)
+    picks2 = top_k_logits(logits2, k)
+    funny_picks = top_k_logits(logits_funny, k)
+    randy = random.randint(0, 3)
+    if randy == 0.0:
+        return picks0 + funny_picks
+    elif randy == 1.0:
+        return picks1 + funny_picks
+    else:
+        return picks2 + funny_picks
 
 def pick_top_k_combined(logits, logits1, logits2, k):
     picks0 = top_k_logits(logits, k)
@@ -18,10 +30,18 @@ def pick_top_k_combined(logits, logits1, logits2, k):
         return picks2
     #return picks0 + picks1 + picks2
 
+
 def top_k_minus_vanilla(logits, vanilla, k):
     picks0 = top_k_logits(logits, k)
     picks1 = top_k_logits(vanilla, k)
     return picks0 - picks1*0.5
+
+
+def top_k_funny(logits, funny, k, weighting=0.5):
+    picks0 = top_k_logits(logits, k)
+    picks1 = top_k_logits(funny, k)
+    return picks0 + picks1*weighting
+
 
 def top_k_logits(logits, k):
     if k == 0:
@@ -41,6 +61,7 @@ def top_k_logits(logits, k):
        lambda: logits,
        lambda: _top_k(),
     )
+
 
 def top_k_logits_softer(logits, k):
     if k == 0:
@@ -359,8 +380,6 @@ def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', sta
 
 
 def return_logits(*, hparams, run_name='', start_token=None, batch_size=None, context=None, temperature=1, top_k_combined=0, top_k=0, top_p=0.0, use_random=True, use_swap=False):
-
-
     if start_token is None:
         assert context is not None, 'Specify exactly one of start_token and context!'
     else:
@@ -406,11 +425,11 @@ def return_logits(*, hparams, run_name='', start_token=None, batch_size=None, co
         return out
 
 
-def return_combined_logits(*, hparams, length, run_name1='', run_name2='',
+def return_combined_logits(*, hparams, length, run_name1='', run_name2='', funny_name='',
                            start_token=None, batch_size=None, context=None, temperature=1, top_k=0, top_k_combined=0, top_p=0.0,
                            weight1=0.5, weight2=0.5, use_random=False, use_swap=False, use_f1=False, inc=False,
                            use_fifty_one=False, debug=True, logits_used=0, display_logits=False, diverge=False, ov1=0.0, ov2=0.0,
-                           converge_after=2):
+                           use_funny=False):
 
     if start_token is None:
         assert context is not None, 'Specify exactly one of start_token and context!'
@@ -433,11 +452,150 @@ def return_combined_logits(*, hparams, length, run_name1='', run_name2='',
             'presents2': presents2,
         }
 
+    def step_fun(hparams, tokens, past1=None, past2=None, past_fun=None, we1=weight1, we2=weight2):
+        lm_output = model.combine_x_models(hparams=hparams, scopes=[run_name1, run_name2, funny_name], X=tokens, pasts=[past1, past2, past_fun], reuse=tf.AUTO_REUSE, weights=[we1, we2, 0.0])
+        presents1 = lm_output['present1']
+        presents1.set_shape(model.past_shape(hparams=hparams, batch_size=batch_size))
+        presents2 = lm_output['present2']
+        presents2.set_shape(model.past_shape(hparams=hparams, batch_size=batch_size))
+        presents_funny = lm_output['present3']
+        presents_funny.set_shape(model.past_shape(hparams=hparams, batch_size=batch_size))
+
+        return {
+            'logits': lm_output['logits'][:, :, :hparams.n_vocab],
+            'logits1': lm_output['logits1'][:, :, :hparams.n_vocab],
+            'logits2': lm_output['logits2'][:, :, :hparams.n_vocab],
+            'logits_funny': lm_output['logits3'][:, :, :hparams.n_vocab],
+            'presents1': presents1,
+            'presents2': presents2,
+            'presents_funny': presents_funny
+        }
+
     with tf.name_scope('sample_sequence'):
         # Don't feed the last context token -- leave that to the loop below
         # TODO: Would be slightly faster if we called step on the entire context,
         # rather than leaving the last token transformer calculation to the while loop.
-        context_output = step(hparams, context[:, :-1])
+        if use_funny:
+            context_output = step_fun(hparams, context[:,:-1])
+        else:
+            context_output = step(hparams, context[:, :-1])
+
+        def funny_body(past1, past2, past_funny, prev, output, wei1, wei2, old_av1, old_av2):
+            next_outputs = step_fun(hparams, prev[:, tf.newaxis], past1=past1, past2=past2, past_fun=past_funny, we1=wei1, we2=wei2)
+            if use_random:
+                new_weight1 = weight_random()
+                new_weight2 = 1 - new_weight1
+            elif use_swap:
+                new_weight1 = 1 - wei1
+                new_weight2 = wei1
+            else:
+                new_weight1 = wei1
+                new_weight2 = wei2
+            logits0 = next_outputs['logits'][:, -1, :] / tf.to_float(temperature)
+            logits1 = next_outputs['logits1'][:, -1, :] / tf.to_float(temperature)
+            logits2 = next_outputs['logits2'][:, -1, :] / tf.to_float(temperature)
+            logits_funny = next_outputs['logits_funny'][:, -1, :] / tf.to_float(temperature)
+
+            if logits_used == 0:
+                lu = logits0
+            elif logits_used == 1:
+                lu = logits1
+            elif logits_used == 2:
+                lu = logits2
+            else:
+                lu = logits0
+            if False:  # top_p > 0.0:
+                logits = top_p_logits_combined(next_outputs, temperature, p=top_p)
+                log = {}
+            else:
+                if display_logits:
+                    log = {
+                        'logits1': logits1,
+                        'logits2': logits2,
+                        'logits': logits0,
+                    }
+                else:
+                    log = {
+                        'logits1': tf.nn.softmax(logits1),
+                        'logits2': tf.nn.softmax(logits2),
+                        'logits': tf.nn.softmax(logits0),
+                        'loggits_funny': tf.nn.softmax(logits_funny)
+                    }
+                if top_k_combined > 0.0:
+                    logits = pick_top_k_fun(logits0, logits1, logits2, logits_funny, top_k)
+                else:
+                    logits = top_k_funny(lu, logits_funny, k=top_k)
+
+            if diverge:
+                logits00 = top_k_funny(logits0, logits_funny, k=top_k)
+                logits11 = top_k_funny(logits1, logits_funny, k=top_k)
+                logits22 = top_k_funny(logits2, logits_funny, k=top_k)
+
+                samples = tf.multinomial(logits00, num_samples=1, output_dtype=tf.int32)
+                samples1 = tf.multinomial(logits11, num_samples=1, output_dtype=tf.int32)
+                samples2 = tf.multinomial(logits22, num_samples=1, output_dtype=tf.int32)
+
+                sc1 = tf.identity(samples1)
+                lc1 = tf.identity(logits11)
+                sc2 = tf.identity(samples2)
+                lc2 = tf.identity(logits22)
+
+                av1 = tf.reduce_mean(tf.gather_nd(lc1[0], sc1))
+                av2 = tf.reduce_mean(tf.gather_nd(lc2[0], sc2))
+
+                def do_sample(samples, samples1, samples2, new_av1, new_av2):
+                    samples1 = tf.multinomial(logits11, num_samples=1, output_dtype=tf.int32)
+                    samples = tf.multinomial(logits00, num_samples=1, output_dtype=tf.int32)
+                    sc1 = tf.identity(samples1)
+                    lc1 = tf.identity(logits11)
+                    samples2 = tf.multinomial(logits22, num_samples=1, output_dtype=tf.int32)
+                    av1 = tf.reduce_mean(tf.gather_nd(lc1[0], sc1))
+                    sc2 = tf.identity(samples2)
+                    lc2 = tf.identity(logits22)
+                    av2 = tf.reduce_mean(tf.gather_nd(lc2[0], sc2))
+                    return [samples, samples1, samples2, av1, av2]
+
+                def increase_mean(samples, samples1, samples2, new_av1, new_av2):
+                    com_av1 = (new_av1 + old_av1) / 2
+                    com_av2 = (new_av2 + old_av2) / 2
+                    return tf.math.logical_and(tf.less(new_av1, old_av1),
+                                               tf.less(old_av2, new_av2))
+                    # return tf.math.logical_and(tf.less(new_av1/com_av1, old_av1/com_av1),tf.less(old_av2/com_av2, new_av2/com_av2))
+                    # return (new_av1 - old_av1) > 0 #and 0 > (new_av2 - old_av2)
+
+                samples, samples1, samples2, av1, av2 = tf.while_loop(
+                    cond=increase_mean, body=do_sample,
+                    maximum_iterations=200,
+                    loop_vars=[
+                        samples,
+                        samples1,
+                        samples2,
+                        av1,
+                        av2
+                    ],
+                    back_prop=False,
+                )
+                # if we did diverge, then decrement by one
+                # cnd = increase_mean(samples, samples1, samples2, av1, av2)
+                # did_diverge = tf.cond(cnd, 1, 0)
+            else:
+                samples = tf.multinomial(logits, num_samples=1, output_dtype=tf.int32)
+                sc = tf.identity(samples)
+                lc = tf.identity(logits)
+                av1 = tf.reduce_mean(tf.gather_nd(lc[0], sc))
+                av2 = av1
+            return [
+                tf.concat([past1, next_outputs['presents1']], axis=-2),
+                tf.concat([past2, next_outputs['presents2']], axis=-2),
+                tf.concat([past_funny, next_outputs['presents_funny']], axis=-2),
+                tf.squeeze(samples, axis=[1]),
+                tf.concat([output, samples], axis=1),
+                log,
+                av1,
+                av2,
+                new_weight1,
+                new_weight2,
+            ]
 
         def body(past1, past2, prev, output, wei1, wei2, old_av1, old_av2):
             next_outputs = step(hparams, prev[:, tf.newaxis], past1=past1, past2=past2, we1=wei1, we2=wei2)
@@ -497,6 +655,7 @@ def return_combined_logits(*, hparams, length, run_name1='', run_name2='',
                         'logits2': tf.nn.softmax(logits2),
                         'logits': tf.nn.softmax(logits0),
                     }
+
                 if top_k_combined > 0.0:
                     logits = pick_top_k_combined(logits0, logits1, logits2, top_k)
                 else:
@@ -509,31 +668,31 @@ def return_combined_logits(*, hparams, length, run_name1='', run_name2='',
                     #tf.summary.histogram(run_name2, logits2)
 
             if diverge:
-                logits0 = top_k_logits(logits0, k=top_k)
-                logits1 = top_k_logits(logits1, k=top_k)
-                logits2 = top_k_logits(logits2, k=top_k)
+                logits00 = top_k_logits(logits0, k=top_k)
+                logits11 = top_k_logits(logits1, k=top_k)
+                logits22 = top_k_logits(logits2, k=top_k)
                   
-                samples = tf.multinomial(logits0, num_samples=1, output_dtype=tf.int32)
-                samples1 = tf.multinomial(logits1, num_samples=1, output_dtype=tf.int32)
-                samples2 = tf.multinomial(logits2, num_samples=1, output_dtype=tf.int32)
+                samples = tf.multinomial(logits00, num_samples=1, output_dtype=tf.int32)
+                samples1 = tf.multinomial(logits11, num_samples=1, output_dtype=tf.int32)
+                samples2 = tf.multinomial(logits22, num_samples=1, output_dtype=tf.int32)
 
                 sc1 = tf.identity(samples1)
-                lc1 = tf.identity(logits1)
+                lc1 = tf.identity(logits11)
                 sc2 = tf.identity(samples2)
-                lc2 = tf.identity(logits2)
-                #av = lc[0][sc]
+                lc2 = tf.identity(logits22)
+
                 av1 = tf.reduce_mean(tf.gather_nd(lc1[0], sc1))
                 av2 = tf.reduce_mean(tf.gather_nd(lc2[0], sc2))
                 
                 def do_sample(samples, samples1, samples2, new_av1, new_av2):
-                    samples1 = tf.multinomial(logits1, num_samples=1, output_dtype=tf.int32)
-                    samples = tf.multinomial(logits0, num_samples=1, output_dtype=tf.int32)
+                    samples1 = tf.multinomial(logits11, num_samples=1, output_dtype=tf.int32)
+                    samples = tf.multinomial(logits00, num_samples=1, output_dtype=tf.int32)
                     sc1 = tf.identity(samples1)
-                    lc1 = tf.identity(logits1)
-                    samples2 = tf.multinomial(logits2, num_samples=1, output_dtype=tf.int32)
+                    lc1 = tf.identity(logits11)
+                    samples2 = tf.multinomial(logits22, num_samples=1, output_dtype=tf.int32)
                     av1 = tf.reduce_mean(tf.gather_nd(lc1[0], sc1))
                     sc2 = tf.identity(samples2)
-                    lc2 = tf.identity(logits2)
+                    lc2 = tf.identity(logits22)
                     av2 = tf.reduce_mean(tf.gather_nd(lc2[0], sc2))
                     return [samples, samples1, samples2, av1, av2]
 
@@ -584,32 +743,21 @@ def return_combined_logits(*, hparams, length, run_name1='', run_name2='',
         i = 0
         p1 = context_output['presents1']
         p2 = context_output['presents2']
+        pf = context_output['presents_funny']
         previous = context[:, -1]
         o = context
         out_log = {}
         a = weight1
         b = weight2
         while i < length:
-            p1, p2, previous, o, log, av1, av2, a, b = body(p1, p2, previous, o, a, b, ov1, ov2)
+            if use_funny:
+                p1, p2, pf, previous, o, log, av1, av2, a , b = funny_body(p1, p2, pf, previous, o, a, b, ov1, ov2)
+            else:
+                p1, p2, previous, o, log, av1, av2, a, b = body(p1, p2, previous, o, a, b, ov1, ov2)
             out_log[i] = log
             ov1 = av1
             ov2 = av2
             i += 1
-        # _, _, tokens = tf.while_loop(
-        #     cond=cond, body=body,
-        #     maximum_iterations=length,
-        #     loop_vars=[
-        #         context_output['presents'],
-        #         context[:, -1],
-        #         context,
-        #     ],
-        #     shape_invariants=[
-        #         tf.TensorShape(model.past_shape(hparams=hparams, batch_size=batch_size)),
-        #         tf.TensorShape([batch_size]),
-        #         tf.TensorShape([batch_size, None]),
-        #     ],
-        #     back_prop=False,
-        # )
         return ov1, ov2, out_log, o
 
 
