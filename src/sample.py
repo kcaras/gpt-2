@@ -17,6 +17,7 @@ def pick_top_k_fun(logits, logits1, logits2, logits_funny, k):
     else:
         return picks2 + funny_picks
 
+
 def pick_top_k_combined(logits, logits1, logits2, k):
     picks0 = top_k_logits(logits, k)
     picks1 = top_k_logits(logits1, k)
@@ -37,7 +38,7 @@ def top_k_minus_vanilla(logits, vanilla, k):
     return picks0 - picks1*0.5
 
 
-def top_k_funny(logits, funny, k, weighting=0.5):
+def top_k_funny(logits, funny, k, weighting=0.1):
     picks0 = top_k_logits(logits, k)
     picks1 = top_k_logits(funny, k)
     return picks0 + picks1*weighting
@@ -452,8 +453,9 @@ def return_combined_logits(*, hparams, length, run_name1='', run_name2='', funny
             'presents2': presents2,
         }
 
-    def step_fun(hparams, tokens, past1=None, past2=None, past_fun=None, we1=weight1, we2=weight2):
-        lm_output = model.combine_x_models(hparams=hparams, scopes=[run_name1, run_name2, funny_name], X=tokens, pasts=[past1, past2, past_fun], reuse=tf.AUTO_REUSE, weights=[we1, we2, 0.0])
+    def step_fun(hparams, tokens, past1=None, past2=None, past_fun=None, we1=weight1, we2=weight2,):
+        wef = 1 - (we1 + we2)
+        lm_output = model.combine_x_models(hparams=hparams, scopes=[run_name1, run_name2, funny_name], X=tokens, pasts=[past1, past2, past_fun], reuse=tf.AUTO_REUSE, weights=[we1, we2, wef])
         presents1 = lm_output['present1']
         presents1.set_shape(model.past_shape(hparams=hparams, batch_size=batch_size))
         presents2 = lm_output['present2']
@@ -524,7 +526,7 @@ def return_combined_logits(*, hparams, length, run_name1='', run_name2='', funny
                 if top_k_combined > 0.0:
                     logits = pick_top_k_fun(logits0, logits1, logits2, logits_funny, top_k)
                 else:
-                    logits = top_k_funny(lu, logits_funny, k=top_k)
+                    logits = top_k_logits(lu, k=top_k)
 
             if diverge:
                 logits00 = top_k_funny(logits0, logits_funny, k=top_k)

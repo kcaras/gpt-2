@@ -249,7 +249,7 @@ def combined_model(hparams, X, past1=None, past2=None, scope1='brown_romance', s
     return results
 
 
-def combine_x_models(hparams, X, pasts=[], scopes=['brown_romance','cornell_supreme'], reuse=tf.AUTO_REUSE, weights=[0.5,0.5]):
+def combine_x_models(hparams, X, pasts=[None, None], scopes=['brown_romance','cornell_supreme'], reuse=tf.AUTO_REUSE, weights=[0.5,0.5]):
     results = {}
     for i, scope in enumerate(scopes):
         past_ix = pasts[i]
@@ -286,7 +286,7 @@ def combine_x_models(hparams, X, pasts=[], scopes=['brown_romance','cornell_supr
     #results['present'] = tf.nn.softmax(results['present1'])*weight1 + tf.nn.softmax(results['present2'])*weight2
     results['logits'] = results['logits1']*weights[0]
     for ix in range(1, len(scopes)):
-        results['logits'] = results['logits{}'.format(ix+1)]*weights[ix]
+        results['logits'] += results['logits{}'.format(ix+1)]*weights[ix]
     #results['present'] = results['present1'] #+ results['present2']
     #results['logits'] = tf.math.log_prob(tf.math.exp(results['logits1'])*weight1 + tf.math.exp(results['logits2'])*weight2 + tf.math.exp(0.00000001))
     #results['present'] = tf.math.log(tf.math.exp(results['present1'])*weight1 + tf.math.exp(results['present2'])*weight2 + tf.math.exp(0.00000001))
