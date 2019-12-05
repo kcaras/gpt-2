@@ -96,7 +96,7 @@ def print_combined_sentences(
     model_name='117M',
     run_name1='scifi',
     run_name2='cornell_supreme',
-    fun_name='urban_dictionary',
+    fun_name='reddit_jokes',
     seed=None,
     nsamples=1,
     batch_size=1,
@@ -105,16 +105,16 @@ def print_combined_sentences(
     top_k=40,
     top_k_combined=0.0,
     top_p=0.0,
-    weight1=0.45,
-    weight2=0.45,
+    weight1=0.4,
+    weight2=0.4,
     use_random=False,
     use_swap=True,
     logits_used=0,
-    ex_num='combo_urban_funny',
+    ex_num='just_reddit_added',
     display_logits=True,
-    repeat=5,
+    repeat=7,
     use_diverge=False,
-    converge_after=2,
+    converge_after=3,
     use_funny=True,
 ):
     """
@@ -169,7 +169,7 @@ def print_combined_sentences(
     while cnt < repeat:
         raw_text = ' '.join(all_text).replace('\n', '').replace('<|endoftext|>', '')
         if use_diverge:
-            if converge_count <= 0:
+            if cnt > 3:
                 d=False
                 logits_used=1
             else:

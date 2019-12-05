@@ -4,6 +4,7 @@ import random
 import model, encoder
 import os, json
 
+
 def pick_top_k_fun(logits, logits1, logits2, logits_funny, k):
     picks0 = top_k_logits(logits, k)
     picks1 = top_k_logits(logits1, k)
@@ -529,9 +530,9 @@ def return_combined_logits(*, hparams, length, run_name1='', run_name2='', funny
                     logits = top_k_logits(lu, k=top_k)
 
             if diverge:
-                logits00 = top_k_funny(logits0, logits_funny, k=top_k)
-                logits11 = top_k_funny(logits1, logits_funny, k=top_k)
-                logits22 = top_k_funny(logits2, logits_funny, k=top_k)
+                logits00 = top_k_logits(logits0, k=top_k)
+                logits11 = top_k_logits(logits1, k=top_k)
+                logits22 = top_k_logits(logits2, k=top_k)
 
                 samples = tf.multinomial(logits00, num_samples=1, output_dtype=tf.int32)
                 samples1 = tf.multinomial(logits11, num_samples=1, output_dtype=tf.int32)

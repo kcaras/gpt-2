@@ -18,6 +18,8 @@ court2scifi = 'Calling the court to order we will hear the case of John Doe. Law
 court2scifi1 = 'We will now hear argument in the Cherokee Nation against Thompson and Thompson against the Cherokee Nation. Mr. Miller. Well your honor, my client clearly is an alien lifeform. His spaceship was moved at ludicrous speed. Geep Gorp has no problems with the Cherokee. Why would a transflexian hate anyone?'
 kdrama_sents = 'At the office, Jae-in mindlessly twirls a pen while scanning a document as his employees sit on pins and needles. They each glance at their boss until someone’s phone breaks the tense silence. The guilty employee turns it off in haste, and Jae-in appears to pardon the disruption. He begins to speak when another cellphone rings, but before the employee can grab his phone, Jae-in intercepts it and tosses it to the floor. Without acknowledging what just happened, Jae-in asks if everyone is now ready for their meeting.'
 
+diverged_sents = 'A few days after I published this, I received a request for a comment on the article. , has been arrested on suspicion of attempted kidnapping and murder. It\'s not the usual environment but the usual environment of the office. I mean it\'s different from normal. I thought the typical work environment was what they do. However, when Luke sees that the ship\'s sensors have recorded the presence of something, they turn their attention back to the Sith. As Luke looks around, Darth Vader begins to speak in various tongues as well as to a nearby droid.'
+
 def sample_model(
     model_name='117M',
     seed=None,
@@ -418,7 +420,7 @@ def print_logits_of_example(
     model_name='117M',
     run_names=('cornell_supreme', 'scifi', 'cornell_movies', 'kdrama_finetune', 'brown_romance'),
     seed=None,
-    ex_num='gen_human_court2scifi',
+    ex_num='diverge_sent_vader',
     batch_size=1,
     length=None,
     temperature=1,
@@ -426,7 +428,7 @@ def print_logits_of_example(
     top_p=0.0,
     use_random=False,
     use_swap=False,
-    raw_text=court2scifi
+    raw_text=diverged_sents
 ):
     """
     Run the sample_model
@@ -501,5 +503,5 @@ def print_logits_of_example(
 
 
 if __name__ == '__main__':
-    fire.Fire(sample_combined_models)
+    fire.Fire(print_logits_of_example)
 
