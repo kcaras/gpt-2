@@ -77,6 +77,19 @@ def produce_brown_files():
         out_f.close()
 
 
+def read_dnd():
+    out_lines = []
+    with open('dd_bios.csv', 'r', encoding='utf-8') as csv_file:
+        csv_reader = csv.reader(csv_file)
+        for i, row in enumerate(csv_reader):
+            if i > 0:
+                out_lines.append(row[4])
+        out_file = 'dd_bios.txt'
+        of = open(out_file, 'w', encoding='utf-8')
+        of.write('\n'.join(out_lines))
+        of.close()
+
+
 def produce_shakespere():
     out_lines = []
     with open('Shakespeare_data.csv', 'r', encoding='utf-8') as csv_file:
@@ -153,5 +166,6 @@ if __name__ == '__main__':
     # gpt2.download_gpt2(model_name=model_name)   # model is saved into current directory under /models/117M_Romance_Supreme/
     #clean_reddit_jokes()
     #produce_shakespere()
-    combine('supreme', 'scifi_sentences')
-    parse_urban_dictionary()
+    #combine('supreme', 'scifi_sentences')
+    #parse_urban_dictionary()
+    read_dnd()
