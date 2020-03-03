@@ -264,16 +264,16 @@ def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', sta
             elif use_swap:
                 new_weight1 = 1 - wei1
                 new_weight2 = 1 - new_weight1
-            elif use_f1:
-                pass
+            #elif use_f1:
+            #    pass
                 # if wei1 == 1.0:
                 #     inc = False
                 # if wei1 == 0.0:
                 #     inc = True
                 # weight_function1(wei1, inc)
-            elif use_fifty_one:
+            #elif use_fifty_one:
                 #if tf.math.greater(tf.size(output), tf.constant(int(length/2))):
-                pass
+            #    pass
                 # if change >= 1:
                 #     w1 = 1.0
                 #     w2 = 0.0
@@ -378,7 +378,7 @@ def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', sta
         )
         print("\n*************************************\n")
         print(type(mx))
-        return tokens, mx
+        return tokens
 
 
 def return_logits(*, hparams, run_name='', start_token=None, batch_size=None, context=None, temperature=1, top_k_combined=0, top_k=0, top_p=0.0, use_random=True, use_swap=False):
