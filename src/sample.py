@@ -378,7 +378,7 @@ def sample_sequence_combined(*, hparams, length, run_name1='', run_name2='', sta
         )
         print("\n*************************************\n")
         print(type(mx))
-        return tokens
+        return tokens, mx
 
 
 def return_logits(*, hparams, run_name='', start_token=None, batch_size=None, context=None, temperature=1, top_k_combined=0, top_k=0, top_p=0.0, use_random=True, use_swap=False):

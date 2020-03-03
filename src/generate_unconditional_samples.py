@@ -22,6 +22,7 @@ diverged_sents = 'A few days after I published this, I received a request for a 
 
 def sample_model(
     model_name='117M',
+    run_name='dnd_bios2',
     seed=None,
     nsamples=0,
     batch_size=1,
@@ -69,14 +70,16 @@ def sample_model(
             hparams=hparams, length=length,
             start_token=enc.encoder['<|endoftext|>'],
             batch_size=batch_size,
-            temperature=temperature, top_k=top_k, top_p=top_p
+            temperature=temperature, top_k=top_k, top_p=top_p,
+            run_name=run_name
         )[:, 1:]
 
-        saver = tf.train.Saver()
-        ckpt = tf.train.latest_checkpoint(os.path.join('models', model_name))
+        saver = tf.train.Saver([v for v in tf.all_variables() if run_name in v.name])
+        ckpt = tf.train.latest_checkpoint(os.path.join('checkpoint', run_name))
         saver.restore(sess, ckpt)
 
         generated = 0
+        all_text = ''
         while nsamples == 0 or generated < nsamples:
             out = sess.run(output)
             for i in range(batch_size):
@@ -84,22 +87,24 @@ def sample_model(
                 text = enc.decode(out[i])
                 print("=" * 40 + " SAMPLE " + str(generated) + " " + "=" * 40)
                 print(text)
+                all_text += text
+    return all_text
 
 
 def sample_combined_models(
     model_name='117M',
-    run_name1='brown_romance',
-    run_name2='cornell_supreme',
+    run_name1='kdrama_finetune',
+    run_name2='dnd_bios2',
     seed=None,
-    nsamples=2,
+    nsamples=4,
     batch_size=1,
     length=200,
     temperature=1,
     top_k=40,
     top_k_combined=0.0,
     top_p=0.0,
-    weight1=0.5,
-    weight2=0.5,
+    weight1=0.4,
+    weight2=0.6,
     use_random=False,
     use_swap=False,
     use_fifty_one=False,
@@ -191,9 +196,10 @@ def sample_combined_models(
 
         cnt = 0
         generated = 0
+        all_txt = ''
         if debug:
             writer = tf.summary.FileWriter(
-                '/media/twister/04dc1255-e775-4227-9673-cea8d37872c7/humor_gen/caras_humor/gpt-2/logs')
+                '/media/eilab/04dc1255-e775-4227-9673-cea8d37872c7/humor_gen/caras_humor/logs')
             writer.add_graph(sess.graph)
             out = sess.run(output)
 
@@ -220,7 +226,9 @@ def sample_combined_models(
                     print(text)
                     f.write(sample_str)
                     f.write(text)
+                    all_txt += text
             f.close()
+    return all_txt
 
 
 def print_logits(
@@ -296,8 +304,8 @@ def print_logits(
 
 def print_combined_logits(
     model_name='117M',
-    run_name1='kdrama_finetune',
-    run_name2='scifi',
+    run_name1='scifi',
+    run_name2='dnd_bios2',
     seed=None,
     nsamples=1,
     batch_size=10,
@@ -313,7 +321,7 @@ def print_combined_logits(
     use_fifty_one=False,
     debug=True,
     logits_used=1,
-    ex_num='ex_diverge',
+    ex_num='ex_combined',
     display_logits=True,
     diverge=True
 ):
@@ -382,7 +390,7 @@ def print_combined_logits(
         saver2.restore(sess, ckpt2)
         generated = 0
         names = [run_name1, run_name2, 'combined']
-        log_dir = '/media/twister/04dc1255-e775-4227-9673-cea8d37872c7/humor_gen/caras_humor/logs'
+        log_dir = '/media/eilab/04dc1255-e775-4227-9673-cea8d37872c7/humor_gen/caras_humor/logs'
         while nsamples == 0 or generated < nsamples:
             out_log, out = sess.run(output)
             for i in out_log.keys():
@@ -464,7 +472,7 @@ def print_logits_of_example(
     for run_name in run_names:
         losses[run_name] = []
     sents = sent_tokenize(raw_text)
-    f = open('/home/twister/Dropbox (GaTech)/caras_graphs/{}_{}_{}.txt'.format(ex_num, len(sents), '{}'.format('_'.join(run_names))),'w', encoding='utf-8')
+    f = open('{}_{}_{}.txt'.format(ex_num, len(sents), '{}'.format('_'.join(run_names))),'w', encoding='utf-8')
     f.writelines(sents)
     f.close()
 
@@ -503,5 +511,5 @@ def print_logits_of_example(
 
 
 if __name__ == '__main__':
-    fire.Fire(print_logits_of_example)
+    fire.Fire(sample_combined_models)
 
