@@ -1,8 +1,9 @@
-from generate_unconditional_samples import sample_combined_models, sample_model
+from generate_unconditional_samples import sample_combined_models, sample_model, sample_model_with_seed
 from transformers import XLNetTokenizer, XLNetLMHeadModel
 import torch
+from nltk import sent_tokenize
 
-end_puct = ['.', '!', '?']
+
 # TODO Idea 1
 # 1. Get Context Sentence from Domain 1 (GPT-2)
 # 2. Find "pivot sentence" that is plausible from both domain 1 and domain 2 (maybe a 50/50 mix from both domains)
@@ -11,7 +12,7 @@ end_puct = ['.', '!', '?']
 # Note we can potentially not show the original domain sentence to the end user
 def idea1(context1, context2):
     # 1. Get Context Sentence from Domain 1 (GPT-2)
-    context_sent1 = 'John and Sue walked together on the beach'
+    #context_sent1 = 'John and Sue walked together on the beach'
     context_sent1 = sample_model(
         model_name='117M',
         run_name= context1,
@@ -22,8 +23,9 @@ def idea1(context1, context2):
         temperature=1,
         top_k=40,
         top_p=0.0)
+    context_sent1 = sent_tokenize(context_sent1)[0] + ' '
     # 2. Find "pivot sentence" that is plausible from both domain 1 and domain 2 (maybe a 50/50 mix from both domains)
-    pivot_sentence = 'John got down on one knee'
+    #pivot_sentence = 'John got down on one knee'
     pivot_sentence = sample_combined_models(
         model_name='117M',
         run_name1=context1,
@@ -43,6 +45,7 @@ def idea1(context1, context2):
         use_fifty_one=False,
         use_vanilla=False,
         debug=False)
+    pivot_sentence = sent_tokenize(pivot_sentence)[0]
     # 3. Generate text after pivot using domain 2 (GPT-2)
     context_sent2 = sample_model(
         model_name='117M',
@@ -54,8 +57,10 @@ def idea1(context1, context2):
         temperature=1,
         top_k=40,
         top_p=0.0)
+    context_sent2 = sent_tokenize(context_sent2)[0]
     # 4. Use XLNet to fill in the sentence with different masks to go between domain 1 and domain 2
-    orig_sent = context_sent1 + ' <mask> '*4 + context_sent2
+    # TODO Try different mask lengths and choose the "best" one
+    orig_sent = context_sent1 + pivot_sentence + ' <mask> '*7 + context_sent2
     print('context 1: {}'.format(context_sent1))
     print('context 2: {}'.format(context_sent2))
     print('orig_sent: {}'.format(orig_sent))
@@ -69,13 +74,39 @@ def idea1(context1, context2):
 # 2. Generate sentence from domain 1 (GPT-2) that uses that word
 # 3. Find another word from domain 2 that is related to the word (maybe using word vectors???)
 # 4. Generate sentence using that related word in domain 2.
-def idea2():
+def idea2(context1, context2):
     # 1. Find a word with multiple senses
+    word = 'gifted'
     # 2. Generate sentence from domain 1 (GPT-2) that uses that word
-    # 3. Find another word from domain 2 that is related to the word (maybe using word vectors???)
+    context_sent1 = sample_model_with_seed(model_name='117M',
+        run_name=context1,
+        seed=None,
+        nsamples=1,
+        batch_size=1,
+        length=30,
+        temperature=1,
+        top_k=40,
+        top_p=0.0,
+        raw_text='He {} '.format(word)
+    )
+    context_sent1 = sent_tokenize(context_sent1)[0] + ' '
+    # 3. Find another word from domain 2 that is related to the word (maybe using word vectors or frequencies???)
+    related_word = 'child'
     # 4. Generate sentence using that related word in domain 2.
+    context_sent2 = sample_model_with_seed(model_name='117M',
+                                           run_name=context1,
+                                           seed=None,
+                                           nsamples=1,
+                                           batch_size=1,
+                                           length=30,
+                                           temperature=1,
+                                           top_k=40,
+                                           top_p=0.0,
+                                           raw_text='The {} '.format(related_word)
+                                           )
+    context_sent2 = sent_tokenize(context_sent2)[0]
 
-    pass
+
 
 
 def runXL(orig_sent):
@@ -126,6 +157,7 @@ def runXL(orig_sent):
                     # if prev_word == '' or new_word != prev_word:
                     outf.write('new: {}\n'.format(new_word))
                     out_sentence[replacements[replace]] = new_word
+                    print(out_sentence)
                     seen_words.append(new_word)
                     prev_word = new_word
                 elif max_cnt > 0:
@@ -136,6 +168,7 @@ def runXL(orig_sent):
                     outf.write('max_cnt exceeded, just filling in the sentence\n')
                     outf.write('filling: {}'.format(new_word))
                     out_sentence[replacements[replace]] = new_word
+                    print(out_sentence)
                     prev_word = new_word
             replace += 1
         orig_sent = ' '.join(out_sentence)
@@ -146,5 +179,5 @@ def runXL(orig_sent):
 
 
 if __name__ == '__main__':
-    out = idea1('gifted2', 'gift_ideas2')
+    out = idea1('gift_ideas2', 'gifted2')
     print(out)
