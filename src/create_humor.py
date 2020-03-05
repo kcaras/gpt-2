@@ -19,7 +19,7 @@ def idea1(context1, context2):
         seed=None,
         nsamples=1,
         batch_size=1,
-        length=30,
+        length=40,
         temperature=1,
         top_k=40,
         top_p=0.0)
@@ -33,7 +33,7 @@ def idea1(context1, context2):
         seed=None,
         nsamples=1,
         batch_size=1,
-        length=30,
+        length=40,
         temperature=1,
         top_k=40,
         top_k_combined=0.0,
@@ -53,7 +53,7 @@ def idea1(context1, context2):
         seed=None,
         nsamples=1,
         batch_size=1,
-        length=30,
+        length=40,
         temperature=1,
         top_k=40,
         top_p=0.0)
@@ -78,34 +78,39 @@ def idea2(context1, context2):
     # 1. Find a word with multiple senses
     word = 'gifted'
     # 2. Generate sentence from domain 1 (GPT-2) that uses that word
+    seed_text1 = 'He {} '.format(word)
     context_sent1 = sample_model_with_seed(model_name='117M',
         run_name=context1,
         seed=None,
         nsamples=1,
         batch_size=1,
-        length=30,
+        length=40,
         temperature=1,
         top_k=40,
         top_p=0.0,
-        raw_text='He {} '.format(word)
+        raw_text=seed_text1
     )
-    context_sent1 = sent_tokenize(context_sent1)[0] + ' '
+    context_sent1 = sent_tokenize(seed_text1 + context_sent1)[0] + ' '
+    print('context_sent1: {}'.format(context_sent1))
+
     # 3. Find another word from domain 2 that is related to the word (maybe using word vectors or frequencies???)
     related_word = 'child'
     # 4. Generate sentence using that related word in domain 2.
+    seed_text2 = 'The {} '.format(related_word)
     context_sent2 = sample_model_with_seed(model_name='117M',
-                                           run_name=context1,
+                                           run_name=context2,
                                            seed=None,
                                            nsamples=1,
                                            batch_size=1,
-                                           length=30,
+                                           length=40,
                                            temperature=1,
                                            top_k=40,
                                            top_p=0.0,
-                                           raw_text='The {} '.format(related_word)
+                                           raw_text=seed_text2
                                            )
-    context_sent2 = sent_tokenize(context_sent2)[0]
-
+    context_sent2 = sent_tokenize(seed_text2 + context_sent2)[0]
+    print('context_sent2: {}'.format(context_sent2))
+    return context_sent1 + ' ' + context_sent2
 
 
 
@@ -149,15 +154,15 @@ def runXL(orig_sent):
                 vals, idxs = torch.topk(next_token_logits[0][i], 5)
             else:
                 vals, idxs = torch.topk(next_token_logits[0][i], 5)
-            print(vals, idxs)
-            print(idxs.tolist())
+            #print(vals, idxs)
+            #print(idxs.tolist())
             for idx in idxs.tolist():
                 new_word = tokenizer.decode(idx)
                 if new_word not in seen_words and max_cnt > 0:
                     # if prev_word == '' or new_word != prev_word:
                     outf.write('new: {}\n'.format(new_word))
                     out_sentence[replacements[replace]] = new_word
-                    print(out_sentence)
+                    #print(out_sentence)
                     seen_words.append(new_word)
                     prev_word = new_word
                 elif max_cnt > 0:
@@ -168,7 +173,7 @@ def runXL(orig_sent):
                     outf.write('max_cnt exceeded, just filling in the sentence\n')
                     outf.write('filling: {}'.format(new_word))
                     out_sentence[replacements[replace]] = new_word
-                    print(out_sentence)
+                    #print(out_sentence)
                     prev_word = new_word
             replace += 1
         orig_sent = ' '.join(out_sentence)
@@ -179,5 +184,6 @@ def runXL(orig_sent):
 
 
 if __name__ == '__main__':
-    out = idea1('gift_ideas2', 'gifted2')
+    #out = idea1('gift_ideas2', 'gifted2')
+    out = idea2('gifted2', 'gift_ideas2')
     print(out)
