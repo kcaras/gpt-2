@@ -2,7 +2,7 @@ from generate_unconditional_samples import sample_combined_models, sample_model,
 from transformers import XLNetTokenizer, XLNetLMHeadModel
 import torch
 from nltk import sent_tokenize
-
+from grammarbot import GrammarBotClient
 
 # TODO Idea 1
 # 1. Get Context Sentence from Domain 1 (GPT-2)
@@ -13,6 +13,8 @@ from nltk import sent_tokenize
 def idea1(context1, context2):
     # 1. Get Context Sentence from Domain 1 (GPT-2)
     #context_sent1 = 'John and Sue walked together on the beach'
+    f = open('idea1_out.txt', 'w', encoding='utf-8')
+    client = GrammarBotClient()
     context_sent1 = sample_model(
         model_name='117M',
         run_name= context1,
@@ -60,13 +62,29 @@ def idea1(context1, context2):
     context_sent2 = sent_tokenize(context_sent2)[0]
     # 4. Use XLNet to fill in the sentence with different masks to go between domain 1 and domain 2
     # TODO Try different mask lengths and choose the "best" one
-    orig_sent = context_sent1 + pivot_sentence + ' <mask> '*7 + context_sent2
     print('context 1: {}'.format(context_sent1))
     print('context 2: {}'.format(context_sent2))
-    print('orig_sent: {}'.format(orig_sent))
-    out = runXL(orig_sent)
+    best_sent = ''
+    best_val = 100
+    for i in range(1, 20):
+        orig_sent = context_sent1 + pivot_sentence + ' <mask> '*i + context_sent2
+        print(i)
+        print('\norig_sent: {}\n'.format(orig_sent))
+        f.write('{}\n'.format(i))
+        f.write('orig_sent: {}\n'.format(orig_sent))
+        out = runXL(orig_sent)
+        print('\nout_sent: {}\n'.format(out))
+        f.write('out_sent: {}\n'.format(out))
+        res = client.check(out)
+        f.write('score\n\n: {}'.format(len(res.matches)))
+        if len(res.matches) < best_val or i == 0:
+            best_sent = out
+            best_val = len(res.matches)
+    f.write('best: {}'.format(best_sent))
+    f.write('score: {}'.format(best_val))
+    f.close()
     # Note we can potentially not show the original domain sentence to the end user
-    return out
+    return best_sent
 
 
 # TODO Idea 2:
@@ -111,7 +129,6 @@ def idea2(context1, context2):
     context_sent2 = sent_tokenize(seed_text2 + context_sent2)[0]
     print('context_sent2: {}'.format(context_sent2))
     return context_sent1 + ' ' + context_sent2
-
 
 
 def runXL(orig_sent):
@@ -184,6 +201,7 @@ def runXL(orig_sent):
 
 
 if __name__ == '__main__':
-    #out = idea1('gift_ideas2', 'gifted2')
-    out = idea2('gifted2', 'gift_ideas2')
+
+    out = idea1('gift_ideas2', 'gifted2')
+    #out = idea2('gifted2', 'gift_ideas2')
     print(out)
