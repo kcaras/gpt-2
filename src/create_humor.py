@@ -1,4 +1,5 @@
-from generate_unconditional_samples import sample_combined_models, sample_model, sample_model_with_seed
+from generate_unconditional_samples import sample_combined_models, sample_model, sample_model_with_seed, sample_combined_models_with_seed
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from transformers import XLNetTokenizer, XLNetLMHeadModel
 import torch
 from nltk import sent_tokenize
@@ -41,7 +42,7 @@ def idea1(context1, context2, run_cnt, fill_backwards=False):
     #pivot_sentence = 'John got down on one knee'
     isSent = False
     while not isSent:
-        pivot_sentence = sample_combined_models(
+        pivot_sentence = sample_combined_models_with_seed(
         model_name='117M',
         run_name1=context1,
         run_name2=context2,
@@ -59,7 +60,8 @@ def idea1(context1, context2, run_cnt, fill_backwards=False):
         use_swap=False,
         use_fifty_one=False,
         use_vanilla=False,
-        debug=False)
+        debug=False,
+        raw_text=context_sent1)
         pivot_sentence = sent_tokenize(pivot_sentence)[0]
         print(pivot_sentence)
         isSent = any([pivot_sentence[-1] == punct for punct in sentence_ending])  and len(pivot_sentence.split()) > 5 and 'www.' not in pivot_sentence
@@ -112,11 +114,12 @@ def idea1(context1, context2, run_cnt, fill_backwards=False):
         f.write('out_sent2: {}\n'.format(out2))
         out_sent = out2
         res = client.check(masked_out2)
-        score = -1.0*len(res.matches)*0.3 + i*0.7
+        #score = -1.0*len(res.matches)*0.3 + i*0.7
+        score = score_sentence2(context_sent1, pivot_sentence, masked_out2, context_sent2)
         f.write('score\n\n: {}'.format(len(res.matches)))
-        if score < best_val or i == start:
+        if score > best_val or i == start:
             best_sent = out_sent
-            best_val = len(res.matches)
+            best_val = score
             best_num_masks = i
     f.write('\n \n')
     f.write('num masks: {}\n'.format(best_num_masks))
@@ -126,6 +129,27 @@ def idea1(context1, context2, run_cnt, fill_backwards=False):
     # Note we can potentially not show the original domain sentence to the end user
     return best_sent
 
+def score_sentence1(context_sent1, pivot_sentence, masked_sentence, context_sent2):
+    client = GrammarBotClient()
+    sentence = context_sent1 + pivot_sentence + masked_sentence + context_sent2
+    res = client.check(sentence)
+    score = len(res.matches)
+    return score
+
+def score_sentence2(context_sent1, pivot_sentence, masked_sentence, context_sent2):
+    sent1 = get_sentiment(context_sent1)
+    pivot = get_sentiment(pivot_sentence)
+    masked_sent = get_sentiment(masked_sentence)
+    sent2 = get_sentiment(context_sent2)
+    score = 0
+    # need to figure out a score with sentiment
+    if (masked_sent > 0 and sent2 < 0) or (sent2 > 0 and masked_sent < 0):
+        score += 1
+    if (pivot > 0 and sent2 < 0) or (sent2 > 0 and pivot < 0):
+        score += 1
+    grammar_score = score_sentence1(context_sent1, pivot_sentence, masked_sentence, context_sent2)
+    score -= grammar_score
+    return score
 
 # TODO Idea 2:
 # 1. Find a word with multiple senses
@@ -170,6 +194,8 @@ def idea2(context1, context2):
     print('context_sent2: {}'.format(context_sent2))
     return context_sent1 + ' ' + context_sent2
 
+def get_sentiment(sentence):
+    return self.sentiment_analyzer.polarity_scores(sentence)['compound']
 
 def runXL(orig_sent, fill_backwards=False):
     # getting the model
