@@ -367,7 +367,7 @@ def sample_combined_models_with_seed(
             hparams=hparams, run_name1=run_name1, run_name2=run_name2,
             context=context,
             length=length,
-            start_token=enc.encoder['<|endoftext|>'],
+            #start_token=enc.encoder['<|endoftext|>'],
             batch_size=batch_size,
             temperature=temperature,
             top_k=top_k,

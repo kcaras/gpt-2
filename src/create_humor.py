@@ -4,7 +4,7 @@ from transformers import XLNetTokenizer, XLNetLMHeadModel
 import torch
 from nltk import sent_tokenize
 from grammarbot import GrammarBotClient
-
+import nltk
 sentence_ending =['.', '!', '?']
 exclude_words = ['<eop>', '<eod>']
 # TODO Idea 1
@@ -13,11 +13,15 @@ exclude_words = ['<eop>', '<eod>']
 # 3. Use XLNet to fill in the sentence with different masks to go between domain 1 and domain 2
 # 4. Generate text after pivot using domain 2 (GPT-2)
 # Note we can potentially not show the original domain sentence to the end user
-def idea1(context1, context2, run_cnt, fill_backwards=False):
+def idea1(context1, context2, run_cnt, fill_backwards1=True, fill_backwards2=False):
     # 1. Get Context Sentence from Domain 1 (GPT-2)
     #context_sent1 = 'John and Sue walked together on the beach'
-    if fill_backwards:
+    if fill_backwards1 and fill_backwards2:
         f = open('idea1_samples/backward_fill/{}_idea1_{}_{}_out.txt'.format(run_cnt, context1, context2), 'w', encoding='utf-8')
+    elif not fill_backwards1 and fill_backwards2:
+        f =  open('idea1_samples/first_forward_second_backward/{}_idea1_{}_{}_out.txt'.format(run_cnt, context1, context2), 'w', encoding='utf-8')
+    elif fill_backwards1 and not fill_backwards2:
+        f =  open('idea1_samples/first_backward_second_forward/{}_idea1_{}_{}_out.txt'.format(run_cnt, context1, context2), 'w', encoding='utf-8')
     else:
         f = open('idea1_samples/forward_fill/{}_idea1_{}_{}_out.txt'.format(run_cnt, context1, context2), 'w', encoding='utf-8')
     client = GrammarBotClient()
@@ -29,13 +33,16 @@ def idea1(context1, context2, run_cnt, fill_backwards=False):
                 seed=None,
                 nsamples=1,
                 batch_size=1,
-                length=40,
+                length=60,
                 temperature=1,
                 top_k=40,
                 top_p=0.0)
-        context_sent1 = sent_tokenize(context_sent1)[0]
-        print('context_sent1: {}'.format(context_sent1))
-        isSent = any([context_sent1[-1] == punct for punct in sentence_ending]) and len(context_sent1.split()) > 5 and 'www.' not in context_sent1
+        if len(sent_tokenize(context_sent1)) >= 2:
+            context_sent1 = ' '.join(sent_tokenize(context_sent1)[0:2])
+        else:
+            context_sent1 = sent_tokenize(context_sent1)[0]
+       # print('context_sent1: {}'.format(context_sent1))
+        isSent = any([context_sent1[-1] == punct for punct in sentence_ending]) and len(context_sent1.split()) > 15 and 'www.' not in context_sent1
     context_sent1 += ' '
     context_sent1 = context_sent1.replace('\n', '')
     # 2. Find "pivot sentence" that is plausible from both domain 1 and domain 2 (maybe a 50/50 mix from both domains)
@@ -49,7 +56,7 @@ def idea1(context1, context2, run_cnt, fill_backwards=False):
         seed=None,
         nsamples=1,
         batch_size=1,
-        length=40,
+        length=50,
         temperature=1,
         top_k=40,
         top_k_combined=0.0,
@@ -63,25 +70,30 @@ def idea1(context1, context2, run_cnt, fill_backwards=False):
         debug=False,
         raw_text=context_sent1)
         pivot_sentence = sent_tokenize(pivot_sentence)[0]
-        print(pivot_sentence)
-        isSent = any([pivot_sentence[-1] == punct for punct in sentence_ending])  and len(pivot_sentence.split()) > 5 and 'www.' not in pivot_sentence
+        #print(pivot_sentence)
+        isSent = any([pivot_sentence[-1] == punct for punct in sentence_ending]) and len(pivot_sentence.split()) > 10 and 'www.' not in pivot_sentence
     isSent = False
     pivot_sentence = pivot_sentence.replace('\n','')
     # 3. Generate text after pivot using domain 2 (GPT-2)
     while not isSent:
-        context_sent2 = sample_model(
+        context_sent2 = sample_model_with_seed(
         model_name='117M',
         run_name=context2,
         seed=None,
         nsamples=1,
         batch_size=1,
-        length=40,
+        length=50,
         temperature=1,
         top_k=40,
-        top_p=0.0)
-        context_sent2 = sent_tokenize(context_sent2)[0]
-        print(context_sent2)
-        isSent = any([context_sent2[-1] == punct for punct in sentence_ending]) and len(context_sent2.split()) > 5 and 'www.' not in context_sent2
+        top_p=0.0,
+        raw_text=pivot_sentence)
+        #context_sent2 = sent_tokenize(context_sent2)[0]
+        #print(context_sent2)
+        if len(sent_tokenize(context_sent2)) >= 2:
+            context_sent2 = ' '.join(sent_tokenize(context_sent2)[0:2])
+        else:
+            context_sent2 = sent_tokenize(context_sent2)[0]
+        isSent = any([context_sent2[-1] == punct for punct in sentence_ending]) and len(context_sent2.split()) > 15 and 'www.' not in context_sent2
     context_sent2 = context_sent2.replace('\n','')
     # 4. Use XLNet to fill in the sentence with different masks to go between domain 1 and domain 2
     # TODO Try different mask lengths and choose the "best" one
@@ -91,17 +103,18 @@ def idea1(context1, context2, run_cnt, fill_backwards=False):
     best_val = 100
     best_num_masks = 0
     start = 4
-    end = 15
+    end = 40
+    best_before = '' 
     context2_words = context_sent2.split()
     split_len = len(context_sent2.split())//2
-
     for i in range(start, end):
+        before = context_sent1 + pivot_sentence + ' <mask> '*i + context_sent2
         orig_sent1 = context_sent1 + pivot_sentence + ' <mask> '*(i//2) #+ ' '.join(context2_words[:split_len])
         #orig_sent2 = ' <mask> '*(i//2) + '.' + context_sent
         out_sent = ''
         print('\norig_sent1: {}\n'.format(orig_sent1))
         f.write('orig_sent1: {}\n'.format(orig_sent1))
-        out1, masked_out1 = runXL(orig_sent1, fill_backwards=fill_backwards)
+        out1, masked_out1 = runXL(orig_sent1, fill_backwards=fill_backwards1)
         print('\nout_sent1: {}\n'.format(out1))
         f.write('out_sent1: {}\n'.format(out1))
         out_sent += out1
@@ -109,7 +122,7 @@ def idea1(context1, context2, run_cnt, fill_backwards=False):
         orig_sent2 = out1 + ' <mask> '*(i//2) + '.' + context_sent2
         print('\norig_sent2: {}\n'.format(orig_sent2))       
         f.write('orig_sent2: {}\n'.format(orig_sent2))
-        out2, masked_out2 = runXL(orig_sent2, fill_backwards=fill_backwards)
+        out2, masked_out2 = runXL(orig_sent2, fill_backwards=fill_backwards2)
         print('\nout_sent2: {}\n'.format(out2))
         f.write('out_sent2: {}\n'.format(out2))
         out_sent = out2
@@ -121,7 +134,10 @@ def idea1(context1, context2, run_cnt, fill_backwards=False):
             best_sent = out_sent
             best_val = score
             best_num_masks = i
-    f.write('\n \n')
+            best_before = before
+    f.write('\n\n')
+    f.write('\nBest Output\n')
+    f.write('before: {}'.format(best_before))
     f.write('num masks: {}\n'.format(best_num_masks))
     f.write('best: {}\n'.format(best_sent))
     f.write('score: {}'.format(best_val))
@@ -141,14 +157,21 @@ def score_sentence2(context_sent1, pivot_sentence, masked_sentence, context_sent
     pivot = get_sentiment(pivot_sentence)
     masked_sent = get_sentiment(masked_sentence)
     sent2 = get_sentiment(context_sent2)
+    len_ex = sum([len(text.split()) for text in [context_sent1, pivot_sentence, masked_sentence, context_sent2]])
     score = 0
+    sentiment_difference1 = sent2 - masked_sent
+    sentiment_difference2 = masked_sent - pivot
+    if sentiment_difference1 < 0.0 and sent2 >= 0.0:
+        sentiment_difference1 = 0.0
+    if sentiment_difference2 < 0.0 and masked_sent >= 0.0:
+        sentiment_difference2 = 0.0
     # need to figure out a score with sentiment
-    if (masked_sent > 0 and sent2 < 0) or (sent2 > 0 and masked_sent < 0):
-        score += 1
-    if (pivot > 0 and sent2 < 0) or (sent2 > 0 and pivot < 0):
-        score += 1
-    grammar_score = score_sentence1(context_sent1, pivot_sentence, masked_sentence, context_sent2)
-    score -= grammar_score
+    #if (masked_sent > 0 and sent2 < 0) or (sent2 > 0 and masked_sent < 0):
+    #    score += 1
+    #if (pivot > 0 and sent2 < 0) or (sent2 > 0 and pivot < 0):
+    #    score += 1
+    grammar_score = score_sentence1(context_sent1, pivot_sentence, masked_sentence, context_sent2)/len_ex
+    score = (sentiment_difference1 + sentiment_difference2 - grammar_score)/4
     return score
 
 # TODO Idea 2:
@@ -160,42 +183,69 @@ def idea2(context1, context2):
     # 1. Find a word with multiple senses
     word = 'gifted'
     # 2. Generate sentence from domain 1 (GPT-2) that uses that word
-    seed_text1 = 'He {} '.format(word)
-    context_sent1 = sample_model_with_seed(model_name='117M',
-        run_name=context1,
-        seed=None,
-        nsamples=1,
-        batch_size=1,
-        length=40,
-        temperature=1,
-        top_k=40,
-        top_p=0.0,
-        raw_text=seed_text1
-    )
-    context_sent1 = sent_tokenize(seed_text1 + context_sent1)[0] + ' '
+    seed_text1 = 'He is {} '.format(word)
+    isSent = False
+    while not isSent:
+        context_sent1 = sample_model_with_seed(model_name='117M',
+                run_name=context1,
+                seed=None,
+                nsamples=1,
+                batch_size=1,
+                length=60,
+                temperature=1,
+                top_k=40,
+                top_p=0.0,
+                raw_text=seed_text1)
+        context_sent1 = sent_tokenize(seed_text1 + context_sent1)
+        context_sent1 = ' '.join(context_sent1[:-1])
+        isSent = any([context_sent1[-1] == punct for punct in sentence_ending]) and len(context_sent1.split()) > 10 and 'www.' not in context_sent1
     print('context_sent1: {}'.format(context_sent1))
 
     # 3. Find another word from domain 2 that is related to the word (maybe using word vectors or frequencies???)
     related_word = 'child'
     # 4. Generate sentence using that related word in domain 2.
     seed_text2 = 'The {} '.format(related_word)
-    context_sent2 = sample_model_with_seed(model_name='117M',
+    isSent = False
+    while not isSent:
+        context_sent2 = sample_model_with_seed(model_name='117M',
                                            run_name=context2,
                                            seed=None,
                                            nsamples=1,
                                            batch_size=1,
-                                           length=40,
+                                           length=60,
                                            temperature=1,
-                                           top_k=40,
+                                           top_k=50,
                                            top_p=0.0,
-                                           raw_text=seed_text2
+                                           raw_text=context_sent1 + ' ' + seed_text2
                                            )
-    context_sent2 = sent_tokenize(seed_text2 + context_sent2)[0]
+        context_sent2 = sent_tokenize(seed_text2 + context_sent2)
+        context_sent2 = ' '.join(context_sent2[:-1]) 
+        isSent = any([context_sent2[-1] == punct for punct in sentence_ending]) and len(context_sent2.split()) > 10 and 'www.' not in context_sent2
     print('context_sent2: {}'.format(context_sent2))
-    return context_sent1 + ' ' + context_sent2
+    # 4. Find word only used in domain 2 
+    word2 = 'Santa'
+    seed_text3 = '{}'.format(word2)
+    isSent = False
+    while not isSent:
+        context_sent3 = sample_model_with_seed(model_name='117M',
+                run_name=context2,
+                seed=None,
+                nsamples=1,
+                batch_size=1,
+                length = 60,
+                temperature=1,
+                top_k=50,
+                top_p=0.0,
+                raw_text=context_sent1 + ' ' + context_sent2 + ' ' + seed_text3)
+        context_sent3 = sent_tokenize(seed_text3 + context_sent3)
+        context_sent3 = ' '.join(context_sent3[:-1])
+        isSent = any([context_sent3[-1] == punct for punct in sentence_ending]) and len(context_sent3.split()) > 10 and 'www.' not in context_sent3
+    print('context_sent3: {}'.format(context_sent3))
+    return context_sent1 + ' ' + context_sent2 + ' ' + context_sent3
 
 def get_sentiment(sentence):
-    return self.sentiment_analyzer.polarity_scores(sentence)['compound']
+    sentiment_analyzer = SentimentIntensityAnalyzer()
+    return sentiment_analyzer.polarity_scores(sentence)['compound']
 
 def runXL(orig_sent, fill_backwards=False):
     # getting the model
@@ -235,7 +285,7 @@ def runXL(orig_sent, fill_backwards=False):
             ranger = list(range(len(predicts)))
         else:
             ranger = list(range(len(predicts)-1, -1, -1))
-        for i in ranger[0:1]:
+        for i in ranger:
             print("mask", i)
             outf.write("mask {}\n".format(i))
             if max_cnt > 0:
@@ -284,12 +334,15 @@ def runXL(orig_sent, fill_backwards=False):
     masked_output = ' '.join(out_sentence[masked_idx[0]:masked_idx[-1]])
     return orig_sent, masked_output
 
-
-if __name__ == '__main__':
-    pairs= [('scifi','cornell_supreme'), ('gifted2','gift_ideas2'),('gift_ideas2','gifted2'), ('strength_training2','cookingforbeginners2'), ('cookingforbeginners2','strength_training2')]
+def main_idea1():
+    pairs= [('scifi','cornell_supreme'), ('gifted2','gift_ideas2'),('gift_ideas2','gifted2'), ('strength_training2','cookingforbeginners2'), ('cookingforbeginners2','strength_training2'), ('dnd_bios2', 'kdrama_finetune')]
     for pair in pairs:
         for run in range(2):
-            out = idea1(pair[0], pair[1], run, fill_backwards=True)
-    #out = idea2('gifted2', 'gift_ideas2')
+            out = idea1(pair[0], pair[1], run, fill_backwards1=False, fill_backwards2=False)
 
-    #print(out)
+def main_idea2():
+    out= idea2('gifted2', 'gift_ideas2')
+    print('\n\n\n' + out)
+
+if __name__ == '__main__':
+    main_idea2()
