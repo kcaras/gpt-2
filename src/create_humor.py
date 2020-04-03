@@ -7,6 +7,8 @@ from grammarbot import GrammarBotClient
 import nltk
 sentence_ending =['.', '!', '?']
 exclude_words = ['<eop>', '<eod>']
+avoid_xlnet_idea2 = ['.', ',', '?', '!', '<eop>', 'and', 'but', '<eop>', '<eod>']
+
 # TODO Idea 1
 # 1. Get Context Sentence from Domain 1 (GPT-2)
 # 2. Find "pivot sentence" that is plausible from both domain 1 and domain 2 (maybe a 50/50 mix from both domains)
@@ -202,6 +204,12 @@ def score_sentence1(context_sent1, pivot_sentence, masked_sentence, context_sent
     score = len(res.matches)
     return score
 
+def score_grammar(sentence):
+    client = GrammarBotClient()
+    res = client.check(sentence)
+    score = len(res.matches)
+    return score
+
 def score_sentence2(context_sent1, pivot_sentence, masked_sentence, context_sent2):
     sent1 = get_sentiment(context_sent1)
     pivot = get_sentiment(pivot_sentence)
@@ -233,8 +241,25 @@ def score_sentence2(context_sent1, pivot_sentence, masked_sentence, context_sent
 def idea2(context1, context2):
     # 1. Find a word with multiple senses
     word = 'lifted'#'gifted'
+    # Generate a throw away word to start out the XLNet
+    isSent = False
+    while not isSent:
+        context_sent1_throw = sample_model(model_name='117M',
+                run_name=context1,
+                seed=None,
+                nsamples=1,
+                batch_size=1,
+                length=60,
+                temperature=1,
+                top_k=40,
+                top_p=0.0)
+        context_sent1_throw = sent_tokenize(context_sent1_throw)
+        context_sent1_throw = ' '.join(context_sent1_throw[:-1])
+        isSent = any([context_sent1_throw[-1] == punct for punct in sentence_ending]) and len(context_sent1_throw.split()) > 10 and 'www.' not in context_sent1_throw
+    print('context_sent1_throw: {}'.format(context_sent1_throw))
     # 2. Generate sentence from domain 1 (GPT-2) that uses that word
-    seed_text1 = 'He {} '.format(word)
+    seed_text1 = xl_net_fill_begining(context_sent1_throw, word, start=1, end=6, k=5, avoid=avoid_xlnet_idea2)
+    #seed_text1 = 'He {} '.format(word)
     isSent = False
     while not isSent:
         context_sent1 = sample_model_with_seed(model_name='117M',
@@ -254,8 +279,25 @@ def idea2(context1, context2):
 
     # 3. Find another word from domain 2 that is related to the word (maybe using word vectors or frequencies???)
     related_word = 'stack'
+    isSent = False
+    while not isSent:
+        context_sent2_throw = sample_model(model_name='117M',
+                run_name=context2,
+                seed=None,
+                nsamples=1,
+                batch_size=1,
+                length=60,
+                temperature=1,
+                top_k=40,
+                top_p=0.0)
+        context_sent2_throw = sent_tokenize(context_sent2_throw)
+        context_sent2_throw = ' '.join(context_sent2_throw[:-1])
+        isSent = any([context_sent2_throw[-1] == punct for punct in sentence_ending]) and len(context_sent2_throw.split()) > 10 and 'www.' not in context_sent2_throw
+    print('context_sent2_throw: {}'.format(context_sent2_throw))
+    # 2. Generate sentence from domain 1 (GPT-2) that uses that word
+    seed_text2 = xl_net_fill_begining(context_sent2_throw, word, start=1, end=6, k=5, avoid=avoid_xlnet_idea2)
     # 4. Generate sentence using that related word in domain 2.
-    seed_text2 = 'The {} '.format(related_word)
+    #seed_text2 = 'The {} '.format(related_word)
     isSent = False
     while not isSent:
         context_sent2 = sample_model_with_seed(model_name='117M',
@@ -392,6 +434,67 @@ def runXL(orig_sent, fill_backwards=False, topk=5):
     outf.close()
     masked_output = ' '.join(out_sentence[masked_idx[0]:masked_idx[-1]])
     return orig_sent, masked_output
+
+def xl_net_fill_begining(context_sent1_throw, word, start=1, end=6, k=5, avoid=None):
+    tokenizer = XLNetTokenizer.from_pretrained('xlnet-large-cased')
+    model = XLNetLMHeadModel.from_pretrained('xlnet-large-cased')
+    output = []
+    last_word = context_sent1.split()[-1]
+    for num_masks in range(start, end):
+        orig_sent = context_sent1_throw + ' <mask> ' * num_masks + word + ' <mask>' * num_masks
+        while '<mask>' in orig_sent:
+            replacements = [ix for ix, word in enumerate(orig_sent.split()) if word == '<mask>']
+            input_ids = torch.tensor(tokenizer.encode(orig_sent, add_special_tokens=True)).unsqueeze(0)
+            perm_mask = torch.zeros((1, input_ids.shape[1], input_ids.shape[1]), dtype=torch.float)
+            masked = (input_ids == 6).float()
+            perm_mask = perm_mask + masked
+            predicts = torch.nonzero(masked[0]).tolist()
+            target_mapping = torch.zeros((1, len(predicts), input_ids.shape[1]), dtype=torch.float)
+            out_sent = orig_sent.split()
+            for n, p in enumerate(predicts):
+                target_mapping[0][n][p] = 1.0
+
+            outputs = model(input_ids, perm_mask=perm_mask, target_mapping=target_mapping)
+            next_token_logits = outputs[
+                0]  # Output has shape [target_mapping.size(0), target_mapping.size(1), config.vocab_size]
+            # ranger = list(range(len(predicts)-1, -1, -1))
+            ranger = list(range(len(predicts)))
+            for i in ranger[0:1]:
+                print("mask", i)
+                vals, idxs = torch.topk(next_token_logits[0][i], k)
+                word_list = [tokenizer.decode(idx) for idx in idxs.tolist()]
+                # print(vals, idxs)
+                # print(idxs.tolist())
+                print('Top {}: {}'.format(k, word_list))
+                found = False
+                found_ix = 0
+                while not found and found_ix < k - 1:
+                    pw = word_list[found_ix]
+                    if pw not in avoid and replacements[i] - 1 > 0 and replacements[i] - 1 < len(out_sent) and out_sent[
+                        replacements[i] - 1].lower() != pw:
+                        found = True
+                    elif replacements[i] == 0 and pw not in avoid:
+                        found = True
+                    elif replacements[i] == len(out_sent) - 1:
+                        found = True
+                    else:
+                        found_ix += 1
+                out_sent[replacements[i]] = word_list[found_ix]
+            orig_sent = ' '.join(out_sent)
+        first_last = orig_sent.split(last_word)
+        output.append(first_last)
+        
+    best_sent = output[0][-1]
+    best_score = score_grammar(output[0][1])
+    for i, first_last in enumerate(output):
+        print('mask num: {}'.format(start + i))
+        for text in first_last:
+            print('\nOut Sent: {}\n'.format(text))
+        score = score_grammar(first_last[1])
+        if score < best_score:
+            best_sent = first_last[1]
+            best_score = score
+    return best_sent
 
 def main_idea1():
     pairs= [('gifted2','gift_ideas2')]#, ('scifi','cornell_supreme'),('gift_ideas2','gifted2'), ('strength_training2','cookingforbeginners2'), ('cookingforbeginners2','strength_training2'), ('dnd_bios2', 'kdrama_finetune')]
