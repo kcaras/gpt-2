@@ -238,7 +238,7 @@ def score_sentence2(context_sent1, pivot_sentence, masked_sentence, context_sent
 # 2. Generate sentence from domain 1 (GPT-2) that uses that word
 # 3. Find another word from domain 2 that is related to the word (maybe using word vectors???)
 # 4. Generate sentence using that related word in domain 2.
-def idea2(context1, context2, word='', related_word=''):
+def idea2(context1, context2, word='', related_word='', word2=''):
     # 1. Find a word with multiple senses
     if word == '':
         word = 'gifted'
@@ -302,7 +302,7 @@ def idea2(context1, context2, word='', related_word=''):
         isSent = any([context_sent2_throw[-1] == punct for punct in sentence_ending]) and len(context_sent2_throw.split()) > 10 and 'www.' not in context_sent2_throw
     print('context_sent2_throw: {}'.format(context_sent2_throw))
     # 2. Generate sentence from domain 1 (GPT-2) that uses that word
-    seed_text2 = xl_net_fill_begining(context_sent2_throw, word, start=1, end=6, k=5, avoid=avoid_xlnet_idea2)
+    seed_text2 = xl_net_fill_begining(context_sent2_throw, related_word, start=1, end=6, k=5, avoid=avoid_xlnet_idea2)
     print('seed_text2: {}'.format(seed_text2))     
     # 4. Generate sentence using that related word in domain 2.
     #seed_text2 = 'The {} '.format(related_word)
@@ -324,8 +324,28 @@ def idea2(context1, context2, word='', related_word=''):
         isSent = any([context_sent2[-1] == punct for punct in sentence_ending]) and len(context_sent2.split()) > 10 and 'www.' not in context_sent2
     print('context_sent2: {}'.format(context_sent2))
     # 4. Find word only used in domain 2 
-    word2 = 'pancake'
-    seed_text3 = 'This {}'.format(word2)
+    if word2 == '':
+        word2 = 'pancake'
+    else:
+        print('word2 {}'.format(word2))
+    isSent = False
+    while not isSent:
+        context_sent2_throw2 = sample_model(model_name='117M',
+                run_name=context2,
+                seed=None,
+                nsamples=1,
+                batch_size=1,
+                length=60,
+                temperature=1,
+                top_k=40,
+                top_p=0.0)
+        context_sent2_throw2 = sent_tokenize(context_sent2_throw2)
+        context_sent2_throw2 = ' '.join(context_sent2_throw2[:-1])
+        isSent = any([context_sent2_throw2[-1] == punct for punct in sentence_ending]) and len(context_sent2_throw2.split()) > 10 and 'www.' not in context_sent2_throw2
+    print('context_sent2_throw2: {}'.format(context_sent2_throw2))
+    seed_text3 = xl_net_fill_begining(context_sent2_throw2, word2, start=1, end=6, k=5, avoid=avoid_xlnet_idea2)
+    print('seed_text3: {}'.format(seed_text3))           
+    #seed_text3 = 'This {}'.format(word2)
     isSent = False
     while not isSent:
         context_sent3 = sample_model_with_seed(model_name='117M',
