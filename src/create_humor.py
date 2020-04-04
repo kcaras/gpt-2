@@ -238,9 +238,12 @@ def score_sentence2(context_sent1, pivot_sentence, masked_sentence, context_sent
 # 2. Generate sentence from domain 1 (GPT-2) that uses that word
 # 3. Find another word from domain 2 that is related to the word (maybe using word vectors???)
 # 4. Generate sentence using that related word in domain 2.
-def idea2(context1, context2):
+def idea2(context1, context2, word='', related_word=''):
     # 1. Find a word with multiple senses
-    word = 'lifted'#'gifted'
+    if word == '':
+        word = 'gifted'
+    else:
+        print('word: {}'.format(word))
     # Generate a throw away word to start out the XLNet
     isSent = False
     while not isSent:
@@ -260,6 +263,7 @@ def idea2(context1, context2):
     # 2. Generate sentence from domain 1 (GPT-2) that uses that word
     seed_text1 = xl_net_fill_begining(context_sent1_throw, word, start=1, end=6, k=5, avoid=avoid_xlnet_idea2)
     #seed_text1 = 'He {} '.format(word)
+    print('seed_text1: {}'.format(seed_text1))
     isSent = False
     while not isSent:
         context_sent1 = sample_model_with_seed(model_name='117M',
@@ -278,7 +282,10 @@ def idea2(context1, context2):
     print('context_sent1: {}'.format(context_sent1))
 
     # 3. Find another word from domain 2 that is related to the word (maybe using word vectors or frequencies???)
-    related_word = 'stack'
+    if related_word == '':
+        related_word = 'child'
+    else:
+        print('related_word: {}'.format(related_word))
     isSent = False
     while not isSent:
         context_sent2_throw = sample_model(model_name='117M',
@@ -296,6 +303,7 @@ def idea2(context1, context2):
     print('context_sent2_throw: {}'.format(context_sent2_throw))
     # 2. Generate sentence from domain 1 (GPT-2) that uses that word
     seed_text2 = xl_net_fill_begining(context_sent2_throw, word, start=1, end=6, k=5, avoid=avoid_xlnet_idea2)
+    print('seed_text2: {}'.format(seed_text2))     
     # 4. Generate sentence using that related word in domain 2.
     #seed_text2 = 'The {} '.format(related_word)
     isSent = False
@@ -378,7 +386,7 @@ def runXL(orig_sent, fill_backwards=False, topk=5):
         else:
             ranger = list(range(len(predicts)-1, -1, -1))
         for i in ranger:
-            print("mask", i)
+            #print("mask", i)
             outf.write("mask {}\n".format(i))
             if max_cnt > 0:
                 vals, idxs = torch.topk(next_token_logits[0][i], topk)
@@ -439,7 +447,7 @@ def xl_net_fill_begining(context_sent1_throw, word, start=1, end=6, k=5, avoid=N
     tokenizer = XLNetTokenizer.from_pretrained('xlnet-large-cased')
     model = XLNetLMHeadModel.from_pretrained('xlnet-large-cased')
     output = []
-    last_word = context_sent1.split()[-1]
+    last_word = context_sent1_throw.split()[-1]
     for num_masks in range(start, end):
         orig_sent = context_sent1_throw + ' <mask> ' * num_masks + word + ' <mask>' * num_masks
         while '<mask>' in orig_sent:
@@ -465,7 +473,7 @@ def xl_net_fill_begining(context_sent1_throw, word, start=1, end=6, k=5, avoid=N
                 word_list = [tokenizer.decode(idx) for idx in idxs.tolist()]
                 # print(vals, idxs)
                 # print(idxs.tolist())
-                print('Top {}: {}'.format(k, word_list))
+                #print('Top {}: {}'.format(k, word_list))
                 found = False
                 found_ix = 0
                 while not found and found_ix < k - 1:
@@ -487,9 +495,9 @@ def xl_net_fill_begining(context_sent1_throw, word, start=1, end=6, k=5, avoid=N
     best_sent = output[0][-1]
     best_score = score_grammar(output[0][1])
     for i, first_last in enumerate(output):
-        print('mask num: {}'.format(start + i))
-        for text in first_last:
-            print('\nOut Sent: {}\n'.format(text))
+        #print('mask num: {}'.format(start + i))
+        #for text in first_last:
+        #    print('\nOut Sent: {}\n'.format(text))
         score = score_grammar(first_last[1])
         if score < best_score:
             best_sent = first_last[1]
@@ -503,9 +511,9 @@ def main_idea1():
             out = idea1(pair[0], pair[1], run, fill_backwards1=False, fill_backwards2=False, use_gpt2=True)
 
 def main_idea2():
-    out = idea2('strength_training2','cookingforbeginners2')
+    out = idea2('strength_training2','cookingforbeginners2', word='lifted', related_word='stack')
     #out= idea2('gifted2', 'gift_ideas2')
     print('\n\n\n' + out)
 
 if __name__ == '__main__':
-    main_idea1()
+    main_idea2()
