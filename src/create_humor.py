@@ -362,6 +362,13 @@ def idea2(context1, context2, word='', related_word='', word2=''):
         context_sent3 = ' '.join(context_sent3[:-1])
         isSent = any([context_sent3[-1] == punct for punct in sentence_ending]) and len(context_sent3.split()) > 10 and 'www.' not in context_sent3
     print('context_sent3: {}'.format(context_sent3))
+    print('\n\n')
+    print('seed_text1: {}'.format(seed_text1))
+    print('context_sent1: {}'.format(context_sent1))
+    print('seed_text2: {}'.format(seed_text2))
+    print('context_sent2: {}'.format(context_sent2))
+    print('seed_text3: {}'.format(seed_text3))
+    print('context_sent3: {}'.format(context_sent3))
     return context_sent1 + ' ' + context_sent2 + ' ' + context_sent3
 
 def get_sentiment(sentence):
@@ -488,7 +495,7 @@ def xl_net_fill_begining(context_sent1_throw, word, start=1, end=6, k=5, avoid=N
             # ranger = list(range(len(predicts)-1, -1, -1))
             ranger = list(range(len(predicts)))
             for i in ranger[0:1]:
-                print("mask", i)
+                #print("mask", i)
                 vals, idxs = torch.topk(next_token_logits[0][i], k)
                 word_list = [tokenizer.decode(idx) for idx in idxs.tolist()]
                 # print(vals, idxs)
@@ -531,7 +538,7 @@ def main_idea1():
             out = idea1(pair[0], pair[1], run, fill_backwards1=False, fill_backwards2=False, use_gpt2=True)
 
 def main_idea2():
-    out = idea2('strength_training2','cookingforbeginners2', word='lifted', related_word='stack')
+    out = idea2('strength_training2','cookingforbeginners2', word='lifted', related_word='stack', word2='pancake')
     #out= idea2('gifted2', 'gift_ideas2')
     print('\n\n\n' + out)
 
