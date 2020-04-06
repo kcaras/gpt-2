@@ -8,6 +8,10 @@ import nltk
 sentence_ending =['.', '!', '?']
 exclude_words = ['<eop>', '<eod>']
 avoid_xlnet_idea2 = ['.', ',', '?', '!', '<eop>', 'and', 'but', '<eop>', '<eod>']
+special_token = '<**>'
+avoid_first = ['and', 'but']
+avoid_last = ['and', 'but', 'so']
+
 
 # TODO Idea 1
 # 1. Get Context Sentence from Domain 1 (GPT-2)
@@ -375,7 +379,7 @@ def get_sentiment(sentence):
     sentiment_analyzer = SentimentIntensityAnalyzer()
     return sentiment_analyzer.polarity_scores(sentence)['compound']
 
-def runXL(orig_sent, fill_backwards=False, topk=5):
+def runXL_old(orig_sent, fill_backwards=False, topk=5):
     # getting the model
     tokenizer = XLNetTokenizer.from_pretrained('xlnet-large-cased')
     model = XLNetLMHeadModel.from_pretrained('xlnet-large-cased')
@@ -601,7 +605,7 @@ def xl_net_fill_begining(context_sent1_throw, word, start=1, end=6, k=5, avoid=N
     return best_sent
 
 def main_idea1():
-    pairs= [('gifted2','gift_ideas2')]#, ('scifi','cornell_supreme'),('gift_ideas2','gifted2'), ('strength_training2','cookingforbeginners2'), ('cookingforbeginners2','strength_training2'), ('dnd_bios2', 'kdrama_finetune')]
+    pairs= [('gifted2','gift_ideas2'), ('strength_training2', 'cookingforbeginners2')]#, ('scifi','cornell_supreme'),('gift_ideas2','gifted2'), ('strength_training2','cookingforbeginners2'), ('cookingforbeginners2','strength_training2'), ('dnd_bios2', 'kdrama_finetune')]
     for pair in pairs:
         for run in range(2):
             out = idea1(pair[0], pair[1], run, fill_backwards1=False, fill_backwards2=False, use_gpt2=True)
@@ -612,4 +616,4 @@ def main_idea2():
     print('\n\n\n' + out)
 
 if __name__ == '__main__':
-    main_idea2()
+    main_idea1()
