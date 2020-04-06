@@ -140,7 +140,7 @@ def idea1(context1, context2, run_cnt, fill_backwards1=True, fill_backwards2=Fal
             f.write('\nfirst part: {}\n'.format(first_half))
             f.write('orig_sent:{}\n'.format(orig_sent1))
             before = orig_sent1
-            out_sent, masked_out1 = runXL(orig_sent1, fill_backwards=fill_backwards1)
+            out_sent, masked_out1 = xl_net_fill_middle(orig_sent1, fill_backwards=fill_backwards1)
             print('\nout_sent: {}\n'.format(out_sent))
             f.write('out_sent: {}\n'.format(out_sent))
             masked_part = first_half + masked_out1
@@ -155,7 +155,7 @@ def idea1(context1, context2, run_cnt, fill_backwards1=True, fill_backwards2=Fal
             f.write('\n{} masks\n'.format(i))
             print('\norig_sent1: {}\n'.format(orig_sent1))
             f.write('orig_sent1: {}\n'.format(orig_sent1))
-            out1, masked_out1 = runXL(orig_sent1, fill_backwards=fill_backwards1)
+            out1, masked_out1 = xl_net_fill_middle(orig_sent1, fill_backwards=fill_backwards1)
             print('\nout_sent1: {}\n'.format(out1))
             f.write('out_sent1: {}\n'.format(out1))
             out_sent += out1
@@ -163,7 +163,7 @@ def idea1(context1, context2, run_cnt, fill_backwards1=True, fill_backwards2=Fal
             orig_sent2 = out1 + ' <mask> '*(i//2) + '.' + context_sent2
             print('\norig_sent2: {}\n'.format(orig_sent2))       
             f.write('orig_sent2: {}\n'.format(orig_sent2))
-            out2, masked_out2 = runXL(orig_sent2, fill_backwards=fill_backwards2)
+            out2, masked_out2 = xl_net_fill_middle(orig_sent2, fill_backwards=fill_backwards2)
             print('\nout_sent2: {}\n'.format(out2))
             f.write('out_sent2: {}\n'.format(out2))
             out_sent = out2
@@ -177,7 +177,7 @@ def idea1(context1, context2, run_cnt, fill_backwards1=True, fill_backwards2=Fal
             print('{} masks'.format(i))
             f.write('\n{} masks\n'.format(i))
             f.write('orig: {}'.format(orig_sent1))
-            out_sent, masked_out = runXL(orig_sent1, fill_backwards=fill_backwards1)
+            out_sent, masked_out = xl_net_fill_middle(orig_sent1, fill_backwards=fill_backwards1)
             print('\nout_sent2: {}\n'.format(out_sent))
             f.write('out_sent2: {}\n'.format(out_sent))
             score = score_sentence2(context_sent1, pivot_sentence, masked_out, context_sent2)
@@ -469,6 +469,75 @@ def runXL(orig_sent, fill_backwards=False, topk=5):
     outf.close()
     masked_output = ' '.join(out_sentence[masked_idx[0]:masked_idx[-1]])
     return orig_sent, masked_output
+
+
+def xl_net_fill_middle(orig_sent, topk=10, fill_backwards=False):
+    tokenizer = XLNetTokenizer.from_pretrained('xlnet-large-cased')
+    model = XLNetLMHeadModel.from_pretrained('xlnet-large-cased')
+    output = []
+    while '<mask>' in orig_sent:
+        replacements = [ix for ix, word in enumerate(orig_sent.split()) if word == '<mask>']
+        input_ids = torch.tensor(tokenizer.encode(orig_sent, add_special_tokens=True)).unsqueeze(0)
+        perm_mask = torch.zeros((1, input_ids.shape[1], input_ids.shape[1]), dtype=torch.float)
+        masked = (input_ids == 6).float()
+        perm_mask = perm_mask + masked
+        predicts = torch.nonzero(masked[0]).tolist()
+        target_mapping = torch.zeros((1, len(predicts), input_ids.shape[1]), dtype=torch.float)
+        out_sent = orig_sent.split()
+        for n, p in enumerate(predicts):
+            target_mapping[0][n][p] = 1.0
+
+        outputs = model(input_ids, perm_mask=perm_mask, target_mapping=target_mapping)
+        next_token_logits = outputs[0]  # Output has shape [target_mapping.size(0), target_mapping.size(1), config.vocab_size]
+        if fill_backwards:
+            ranger = list(range(len(predicts)-1, -1, -1))
+        else:
+            ranger = list(range(len(predicts)))
+        for i in ranger[0:1]:
+            print("mask", i)
+            vals, idxs = torch.topk(next_token_logits[0][i], topk)
+            word_list = [tokenizer.decode(idx) for idx in idxs.tolist()]
+            # print(vals, idxs)
+            # print(idxs.tolist())
+            print('Top {}: {}'.format(topk, word_list))
+            found = False
+            found_ix = 0
+            while not found and found_ix < topk - 1:
+                pw = word_list[found_ix]
+                word_before = special_token
+                if replacements[i] - 1 > 0 and out_sent[replacements[i] - 1] != '<mask>':
+                    word_before = out_sent[replacements[i] - 1]
+                word_after = special_token
+                if replacements[i] + 1 < len(out_sent) and out_sent[replacements[i] + 1] != '<mask>':
+                    word_after = out_sent[replacements[i] + 1]
+
+                # if the word before it is the end of the sentence and the possible word (pw) is not a punctuation mark
+                # and the pw is not a bad start and the pw is not the same as the word before and the word after
+                if any([punct in word_before for punct in sentence_ending]) and pw not in sentence_ending \
+                        and pw not in avoid_first \
+                        and pw not in exclude_words and word_before.lower() != pw.lower() and word_after.lower() != pw.lower():
+                    found = True
+                # if the word after it is the end of the sentence and the possible word (pw) is not a punctuation mark
+                # and the pw is not a bad ending and the pw is not the same as the word before and the word after
+                elif any([punct in word_after for punct in sentence_ending]) and pw not in sentence_ending \
+                        and pw not in avoid_last \
+                        and pw not in exclude_words and word_before.lower() != pw.lower() and word_after.lower() != pw.lower():
+                    found = True
+                # We are dealing with a middle word
+                # pw just has to not be one of the excluded word and not the same as the word before and the word after
+                elif not any([punct in word_before for punct in sentence_ending]) and not any([punct in word_after for punct in sentence_ending]):
+                    if pw not in exclude_words and word_before.lower() != pw.lower() and word_after.lower() != pw.lower():
+                        found = True
+                else:
+                    found_ix += 1
+            if not found:
+                print('did not find a sutible word in topk {}'.format(word_list))
+                print('Chosing the most likely word: {}'.format(word_list[0]))
+                out_sent[replacements[i]] = word_list[0]
+            else:
+                out_sent[replacements[i]] = word_list[found_ix]
+        orig_sent = ' '.join(out_sent)
+    return orig_sent
 
 def xl_net_fill_begining(context_sent1_throw, word, start=1, end=6, k=5, avoid=None):
     tokenizer = XLNetTokenizer.from_pretrained('xlnet-large-cased')
