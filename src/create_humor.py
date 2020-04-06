@@ -478,7 +478,7 @@ def runXL_old(orig_sent, fill_backwards=False, topk=5):
 def xl_net_fill_middle(orig_sent, topk=10, fill_backwards=False):
     tokenizer = XLNetTokenizer.from_pretrained('xlnet-large-cased')
     model = XLNetLMHeadModel.from_pretrained('xlnet-large-cased')
-    output = []
+    masked_out = []
     while '<mask>' in orig_sent:
         replacements = [ix for ix, word in enumerate(orig_sent.split()) if word == '<mask>']
         input_ids = torch.tensor(tokenizer.encode(orig_sent, add_special_tokens=True)).unsqueeze(0)
@@ -538,10 +538,13 @@ def xl_net_fill_middle(orig_sent, topk=10, fill_backwards=False):
                 print('did not find a sutible word in topk {}'.format(word_list))
                 print('Chosing the most likely word: {}'.format(word_list[0]))
                 out_sent[replacements[i]] = word_list[0]
+                masked_out.append(word_list[0])
             else:
                 out_sent[replacements[i]] = word_list[found_ix]
+                masked_out.append(word_list[found_ix])
         orig_sent = ' '.join(out_sent)
-    return orig_sent
+    masked_out = ' '.join(masked_out)
+    return orig_sent, masked_out
 
 def xl_net_fill_begining(context_sent1_throw, word, start=1, end=6, k=5, avoid=None):
     tokenizer = XLNetTokenizer.from_pretrained('xlnet-large-cased')
