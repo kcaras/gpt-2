@@ -237,12 +237,17 @@ def score_sentence2(context_sent1, pivot_sentence, masked_sentence, context_sent
     score = (sentiment_difference1 + sentiment_difference2 - grammar_score)/4
     return score
 
+
+def isSentence(sentence, at_least_length=10):
+    has_word = len(sentence.split()) > 0
+    return has_word and sentence != '' and any([sentence[-1] == punct for punct in sentence_ending]) and len(sentence.split()) > at_least_length and 'www.' not in sentence and 'http' not in sentence
+
 # TODO Idea 2:
-# 1. Find a word with multiple senses
+# 1. Find a word with multiple senses (word)
 # 2. Generate sentence from domain 1 (GPT-2) that uses that word
-# 3. Find another word from domain 2 that is related to the word (maybe using word vectors???)
-# 4. Generate sentence using that related word in domain 2.
-def idea2(context1, context2, word='', related_word='', word2='', run_cnt=0):
+# 3. Find another word from domain 2 that is related to the word (related_word)
+# 4. Generate sentence using that related word.
+def idea2(context1, context2, word='', related_word='', word2='', run_cnt=0, sentence_len=30):
     # 1. Find a word with multiple senses
     if word == '':
         word = 'gifted'
@@ -257,13 +262,13 @@ def idea2(context1, context2, word='', related_word='', word2='', run_cnt=0):
                 seed=None,
                 nsamples=1,
                 batch_size=1,
-                length=60,
+                length=sentence_len,
                 temperature=1,
                 top_k=40,
                 top_p=0.0)
         context_sent1_throw = sent_tokenize(context_sent1_throw)
         context_sent1_throw = ' '.join(context_sent1_throw[:-1])
-        isSent = context_sent1_throw != '' and any([context_sent1_throw[-1] == punct for punct in sentence_ending]) and len(context_sent1_throw.split()) > 10 and 'www.' not in context_sent1_throw
+        isSent = isSentence(context_sent1_throw)
     print('context_sent1_throw: {}'.format(context_sent1_throw))
     f.write('context_sent1_throw: {}\n'.format(context_sent1_throw))
     # 2. Generate sentence from domain 1 (GPT-2) that uses that word
@@ -278,14 +283,14 @@ def idea2(context1, context2, word='', related_word='', word2='', run_cnt=0):
                 seed=None,
                 nsamples=1,
                 batch_size=1,
-                length=60,
+                length=sentence_len,
                 temperature=1,
                 top_k=40,
                 top_p=0.0,
                 raw_text=seed_text1)
         context_sent1 = sent_tokenize(seed_text1 + context_sent1)
         context_sent1 = ' '.join(context_sent1[:-1])
-        isSent = context_sent1 != '' and any([context_sent1[-1] == punct for punct in sentence_ending]) and len(context_sent1.split()) > 10 and 'www.' not in context_sent1
+        isSent = isSentence(context_sent1)
     print('context_sent1: {}'.format(context_sent1))
     f.write('\ncontext_sent1: {}\n'.format(context_sent1))
     # 3. Find another word from domain 2 that is related to the word (maybe using word vectors or frequencies???)
@@ -300,13 +305,13 @@ def idea2(context1, context2, word='', related_word='', word2='', run_cnt=0):
                 seed=None,
                 nsamples=1,
                 batch_size=1,
-                length=60,
+                length=sentence_len,
                 temperature=1,
                 top_k=40,
                 top_p=0.0)
         context_sent2_throw = sent_tokenize(context_sent2_throw)
         context_sent2_throw = ' '.join(context_sent2_throw[:-1])
-        isSent = context_sent2_throw != '' and any([context_sent2_throw[-1] == punct for punct in sentence_ending]) and len(context_sent2_throw.split()) > 10 and 'www.' not in context_sent2_throw
+        isSent = isSentence(context_sent2_throw)
     print('context_sent2_throw: {}'.format(context_sent2_throw))
     # 2. Generate sentence from domain 1 (GPT-2) that uses that word
     seed_text2 = xl_net_fill_begining(context_sent2_throw, related_word, start=1, end=6, k=5, avoid=avoid_xlnet_idea2)
@@ -320,7 +325,7 @@ def idea2(context1, context2, word='', related_word='', word2='', run_cnt=0):
                                            seed=None,
                                            nsamples=1,
                                            batch_size=1,
-                                           length=60,
+                                           length=sentence_len,
                                            temperature=1,
                                            top_k=50,
                                            top_p=0.0,
@@ -328,9 +333,9 @@ def idea2(context1, context2, word='', related_word='', word2='', run_cnt=0):
                                            )
         context_sent2 = sent_tokenize(seed_text2 + context_sent2)
         context_sent2 = ' '.join(context_sent2[:-1]) 
-        isSent =context_sent2 != '' and any([context_sent2[-1] == punct for punct in sentence_ending]) and len(context_sent2.split()) > 10 and 'www.' not in context_sent2
+        isSent = isSentence(context_sent2)
     print('context_sent2: {}'.format(context_sent2))
-    # 4. Find word only used in domain 2 
+    # 5. Find word only used in domain 2 
     if word2 == '':
         word2 = 'pancake'
     else:
@@ -342,13 +347,13 @@ def idea2(context1, context2, word='', related_word='', word2='', run_cnt=0):
                 seed=None,
                 nsamples=1,
                 batch_size=1,
-                length=60,
+                length=sentence_len,
                 temperature=1,
                 top_k=40,
                 top_p=0.0)
         context_sent2_throw2 = sent_tokenize(context_sent2_throw2)
         context_sent2_throw2 = ' '.join(context_sent2_throw2[:-1])
-        isSent = context_sent2_throw != '' and any([context_sent2_throw2[-1] == punct for punct in sentence_ending]) and len(context_sent2_throw2.split()) > 10 and 'www.' not in context_sent2_throw2
+        isSent = isSentence(context_sent2_throw2)
     print('context_sent2_throw2: {}'.format(context_sent2_throw2))
     seed_text3 = xl_net_fill_begining(context_sent2_throw2, word2, start=1, end=6, k=5, avoid=avoid_xlnet_idea2)
     print('seed_text3: {}'.format(seed_text3))           
@@ -360,14 +365,14 @@ def idea2(context1, context2, word='', related_word='', word2='', run_cnt=0):
                 seed=None,
                 nsamples=1,
                 batch_size=1,
-                length = 60,
+                length = sentence_len,
                 temperature=1,
                 top_k=50,
                 top_p=0.0,
                 raw_text=context_sent1 + ' ' + context_sent2 + ' ' + seed_text3)
         context_sent3 = sent_tokenize(seed_text3 + context_sent3)
         context_sent3 = ' '.join(context_sent3[:-1])
-        isSent = context_sent3 != '' and any([context_sent3[-1] == punct for punct in sentence_ending]) and len(context_sent3.split()) > 10 and 'www.' not in context_sent3
+        isSent = isSentence(context_sent3)
     print('context_sent3: {}'.format(context_sent3))
     print('\n\n')
     print('seed_text1: {}'.format(seed_text1))
@@ -385,8 +390,14 @@ def idea2(context1, context2, word='', related_word='', word2='', run_cnt=0):
     f.write('seed_text3: {}\n'.format(seed_text3))
     f.write('context_sent3: {}\n'.format(context_sent3))
     f.write('\n\n\n')
+    #if remove_middle:
+    #    f.write(context_sent1 + ' ' + context_sent3)
+    #    f.close()
+    #    return context_sent1 + ' ' + context_sent3
+    #else:
     f.write(context_sent1 + ' ' + context_sent2 + ' ' + context_sent3)
-    return context_sent1 + ' ' + context_sent2 + ' ' + context_sent3
+    f.close()
+    return context_sent1 + ' ' + context_sent3
 
 def get_sentiment(sentence):
     sentiment_analyzer = SentimentIntensityAnalyzer()
@@ -559,13 +570,15 @@ def xl_net_fill_middle(orig_sent, topk=10, fill_backwards=False):
     masked_out = ' '.join(masked_out)
     return orig_sent, masked_out
 
-def xl_net_fill_begining(context_sent1_throw, word, start=1, end=6, k=5, avoid=None):
+def xl_net_fill_begining(context_sent_throw, word, start=1, end=6, k=5, avoid=None):
     tokenizer = XLNetTokenizer.from_pretrained('xlnet-large-cased')
     model = XLNetLMHeadModel.from_pretrained('xlnet-large-cased')
     output = []
-    last_word = context_sent1_throw.split()[-1]
+    if len(context_sent_throw.split()) < 1:
+        print('context_sent_throw: {}'.format(context_sent_throw))
+    last_word = context_sent_throw.split()[-1]
     for num_masks in range(start, end):
-        orig_sent = context_sent1_throw + ' <mask> ' * num_masks + word + ' <mask>' * num_masks
+        orig_sent = context_sent_throw + ' <mask> ' * num_masks + word + ' <mask>' * num_masks
         while '<mask>' in orig_sent:
             replacements = [ix for ix, word in enumerate(orig_sent.split()) if word == '<mask>']
             input_ids = torch.tensor(tokenizer.encode(orig_sent, add_special_tokens=True)).unsqueeze(0)
@@ -627,10 +640,10 @@ def main_idea1():
             out = idea1(pair[0], pair[1], run, fill_backwards1=False, fill_backwards2=False, use_gpt2=False)
 
 def main_idea2():
-    pairs = [('strength_training2', 'cookingforbeginners2', 'lifted', 'stack', 'pancake'), ('gifted2', 'gift_ideas2', 'gifted', 'child', 'Santa'), ('dnd_bios2', 'gift_ideas2', 'elf', 'child', 'Santa')]
+    pairs = [('strength_training2', 'cookingforbeginners2', 'lifted', 'lifted', 'stack'), ('gifted2', 'gift_ideas2', 'gifted', 'gifted', 'child'), ('dnd_bios2', 'gift_ideas2', 'elf', 'elf', 'bow')]
     for pair in pairs:
         for run in range(3):
-            out = idea2(pair[0],pair[1], word=pair[2], related_word=pair[3], word2=pair[4], run_cnt=run)
+            out = idea2(pair[0],pair[1], word=pair[2], related_word=pair[3], word2=pair[4], run_cnt=run, sentence_len=30)
             print('\n\n\n' + out)
 
 if __name__ == '__main__':
