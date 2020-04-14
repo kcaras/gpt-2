@@ -399,6 +399,138 @@ def idea2(context1, context2, word='', related_word='', word2='', run_cnt=0, sen
     f.close()
     return context_sent1 + ' ' + context_sent3
 
+# 1. Find a word with multiple senses (word)
+# 2. Generate sentence from domain 1 (GPT-2) that uses that word
+# 3a. Could possibly generate lead sentence in domain 2
+# 3. Generate sentence from domain 2 (GPT-2) that uses that word
+# 4. Generate sentence using that related word.
+def idea2_modified(context1, context2, word='', run_cnt=0, sentence_len=40, use_leading=True):
+    # 1. Find a word with multiple senses
+    if word == '':
+        word = 'gifted'
+    else:
+        print('word: {}'.format(word))
+    # Generate a throw away word to start out the XLNet
+    isSent = False
+    f = open('idea2_one_word_samples/idea2_{}_{}_{}_{}.txt'.format(run_cnt, context1, context2, word),
+             'w', encoding='utf-8')
+    # Used to generate a leading sentence for XLNet
+    while not isSent:
+        context_sent1_throw = sample_model(model_name='117M',
+                                           run_name=context1,
+                                           seed=None,
+                                           nsamples=1,
+                                           batch_size=1,
+                                           length=sentence_len,
+                                           temperature=1,
+                                           top_k=40,
+                                           top_p=0.0)
+        context_sent1_throw = sent_tokenize(context_sent1_throw)
+        context_sent1_throw = ' '.join(context_sent1_throw[:-1])
+        isSent = isSentence(context_sent1_throw)
+    print('context_sent1_throw: {}'.format(context_sent1_throw))
+    # 2. Generate sentence from domain 1 (GPT-2) that uses that word
+    seed_text1 = xl_net_fill_begining(context_sent1_throw, word, start=1, end=6, k=5, avoid=avoid_xlnet_idea2)
+    # seed_text1 = 'He {} '.format(word)
+    print('seed_text1: {}'.format(seed_text1))
+    isSent = False
+    while not isSent:
+        context_sent1 = sample_model_with_seed(model_name='117M',
+                                               run_name=context1,
+                                               seed=None,
+                                               nsamples=1,
+                                               batch_size=1,
+                                               length=sentence_len,
+                                               temperature=1,
+                                               top_k=40,
+                                               top_p=0.0,
+                                               raw_text=seed_text1)
+        context_sent1 = sent_tokenize(seed_text1 + context_sent1)
+        context_sent1 = ' '.join(context_sent1[:-1])
+        isSent = isSentence(context_sent1)
+    print('context_sent1: {}'.format(context_sent1))
+    # 3. Generate sentence from domain 2 (GPT-2) that uses that word
+    # context_sent2_throw generated to help XLNet
+    isSent = False
+    while not isSent:
+        context_sent2_throw = sample_model(model_name='117M',
+                                           run_name=context2,
+                                           seed=None,
+                                           nsamples=1,
+                                           batch_size=1,
+                                           length=sentence_len,
+                                           temperature=1,
+                                           top_k=40,
+                                           top_p=0.0)
+        context_sent2_throw = sent_tokenize(context_sent2_throw)
+        context_sent2_throw = ' '.join(context_sent2_throw[:-1])
+        isSent = isSentence(context_sent2_throw)
+    print('context_sent2_throw: {}'.format(context_sent2_throw))
+    # 2. Generate sentence from domain 1 (GPT-2) that uses that word
+    seed_text2 = xl_net_fill_begining(context_sent2_throw, word, start=1, end=6, k=5, avoid=avoid_xlnet_idea2)
+    print('seed_text2: {}'.format(seed_text2))
+    context2_input = ''
+    if use_leading:
+        # 5. Find word only used in domain 2
+        isSent = False
+        while not isSent:
+            context_sent2_throw2 = sample_model(model_name='117M',
+                                                run_name=context2,
+                                                seed=None,
+                                                nsamples=1,
+                                                batch_size=1,
+                                                length=sentence_len,
+                                                temperature=1,
+                                                top_k=40,
+                                                top_p=0.0)
+            context_sent2_throw2 = sent_tokenize(context_sent2_throw2)
+            context_sent2_throw2 = ' '.join(context_sent2_throw2[:-1])
+            isSent = isSentence(context_sent2_throw2)
+        print('context_sent2_throw2: {}'.format(context_sent2_throw2))
+        context2_input = context_sent1 + ' ' + context_sent2_throw2 + ' ' + seed_text2
+        # seed_text3 = 'This {}'.format(word2)
+    else:
+        context2_input = context_sent1 + ' ' + seed_text2
+
+
+    # 3. Generate sentence using that word in domain 2.
+    isSent = False
+    while not isSent:
+        context_sent2 = sample_model_with_seed(model_name='117M',
+                                               run_name=context2,
+                                               seed=None,
+                                               nsamples=1,
+                                               batch_size=1,
+                                               length=sentence_len,
+                                               temperature=1,
+                                               top_k=50,
+                                               top_p=0.0,
+                                               raw_text=context2_input
+                                               )
+        context_sent2 = sent_tokenize(seed_text2 + context_sent2)
+        context_sent2 = ' '.join(context_sent2[:-1])
+        isSent = isSentence(context_sent2)
+
+    print('context_sent2: {}'.format(context_sent2))
+    print('\n\n')
+    print('seed_text1: {}'.format(seed_text1))
+    print('context_sent1: {}'.format(context_sent1))
+    print('seed_text2: {}'.format(seed_text2))
+    print('context_sent2: {}'.format(context_sent2))
+    if use_leading:
+        print('context2_sent_throw2:  {}'.format(context_sent2_throw2))
+        f.write('context2_sent_throw2:  {}'.format(context_sent2_throw2))
+    f.write('\n\n')
+    f.write('seed_text1: {}\n'.format(seed_text1))
+    f.write('context_sent1: {}\n'.format(context_sent1))
+    f.write('seed_text2: {}\n'.format(seed_text2))
+    f.write('context_sent2: {}\n'.format(context_sent2))
+    f.write('\n\n\n')
+    f.write(context_sent1 + ' ' + context_sent2)
+    f.close()
+    return context_sent1 + ' ' + context_sent2
+
+
 def get_sentiment(sentence):
     sentiment_analyzer = SentimentIntensityAnalyzer()
     return sentiment_analyzer.polarity_scores(sentence)['compound']
@@ -645,6 +777,16 @@ def main_idea2():
         for run in range(3):
             out = idea2(pair[0],pair[1], word=pair[2], related_word=pair[3], word2=pair[4], run_cnt=run, sentence_len=30)
             print('\n\n\n' + out)
-
+            
+            
+def main_idea2_modified():
+    pairs = [('strength_training2', 'cookingforbeginners2', 'lifted'),
+             ('gifted2', 'gift_ideas2', 'gifted'), ('dnd_bios2', 'gift_ideas2', 'elf')]
+    for pair in pairs:
+        for run in range(3):
+            out = idea2_modified(pair[0], pair[1], pair[2], sentence_len=30)
+            print('\n\n\n' + out)
+            
+            
 if __name__ == '__main__':
-    main_idea2()
+    main_idea2_modified()
