@@ -1,11 +1,13 @@
-from generate_unconditional_samples import sample_combined_models, sample_model, sample_model_with_seed, sample_combined_models_with_seed
+from generate_unconditional_samples import sample_combined_models, sample_model, sample_model_with_seed, \
+    sample_combined_models_with_seed
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from transformers import XLNetTokenizer, XLNetLMHeadModel
 import torch
 from nltk import sent_tokenize
 from grammarbot import GrammarBotClient
 import nltk
-sentence_ending =['.', '!', '?']
+
+sentence_ending = ['.', '!', '?']
 exclude_words = ['<eop>', '<eod>']
 avoid_xlnet_idea2 = ['.', ',', '?', '!', '<eop>', 'and', 'but', '<eop>', '<eod>']
 special_token = '<**>'
@@ -21,105 +23,138 @@ avoid_last = ['and', 'but', 'so']
 # Note we can potentially not show the original domain sentence to the end user
 def idea1(context1, context2, run_cnt, fill_backwards1=True, fill_backwards2=False, split_two=False, use_gpt2=True):
     # 1. Get Context Sentence from Domain 1 (GPT-2)
-    #context_sent1 = 'John and Sue walked together on the beach'
+    # context_sent1 = 'John and Sue walked together on the beach'
     if split_two:
         if fill_backwards1 and fill_backwards2:
-            f = open('idea1_samples/backward_fill/split_two/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1, context2), 'w', encoding='utf-8')
+            f = open('idea1_samples/backward_fill/split_two/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1,
+                                                                                                     context2), 'w',
+                     encoding='utf-8')
         elif not fill_backwards1 and fill_backwards2:
-            f =  open('idea1_samples/first_forward_second_backward/split_two/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1, context2), 'w', encoding='utf-8')
+            f = open(
+                'idea1_samples/first_forward_second_backward/split_two/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt,
+                                                                                                                context1,
+                                                                                                                context2),
+                'w', encoding='utf-8')
         elif fill_backwards1 and not fill_backwards2:
-            f =  open('idea1_samples/first_backward_second_forward/split_two/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1, context2), 'w', encoding='utf-8')
+            f = open(
+                'idea1_samples/first_backward_second_forward/split_two/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt,
+                                                                                                                context1,
+                                                                                                                context2),
+                'w', encoding='utf-8')
         else:
-            f = open('idea1_samples/forward_fill/split_two/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1, context2), 'w', encoding='utf-8')
+            f = open('idea1_samples/forward_fill/split_two/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1,
+                                                                                                    context2), 'w',
+                     encoding='utf-8')
     if use_gpt2:
         if fill_backwards1 and fill_backwards2:
-            f = open('idea1_samples/backward_fill/gpt2/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1, context2), 'w', encoding='utf-8')
+            f = open(
+                'idea1_samples/backward_fill/gpt2/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1, context2),
+                'w', encoding='utf-8')
         elif not fill_backwards1 and fill_backwards2:
-            f =  open('idea1_samples/first_forward_second_backward/gpt2/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1, context2), 'w', encoding='utf-8')
+            f = open('idea1_samples/first_forward_second_backward/gpt2/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt,
+                                                                                                                context1,
+                                                                                                                context2),
+                     'w', encoding='utf-8')
         elif fill_backwards1 and not fill_backwards2:
-            f =  open('idea1_samples/first_backward_second_forward/gpt2/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1, context2), 'w', encoding='utf-8')
+            f = open('idea1_samples/first_backward_second_forward/gpt2/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt,
+                                                                                                                context1,
+                                                                                                                context2),
+                     'w', encoding='utf-8')
         else:
-            f = open('idea1_samples/forward_fill/gpt2/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1, context2), 'w', encoding='utf-8')
+            f = open(
+                'idea1_samples/forward_fill/gpt2/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1, context2),
+                'w', encoding='utf-8')
     else:
         if fill_backwards1 and fill_backwards2:
-            f = open('idea1_samples/backward_fill/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1, context2), 'w', encoding='utf-8')
+            f = open('idea1_samples/backward_fill/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1, context2),
+                     'w', encoding='utf-8')
         elif not fill_backwards1 and fill_backwards2:
-            f =  open('idea1_samples/first_forward_second_backward/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1, context2), 'w', encoding='utf-8')
+            f = open(
+                'idea1_samples/first_forward_second_backward/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1,
+                                                                                                      context2), 'w',
+                encoding='utf-8')
         elif fill_backwards1 and not fill_backwards2:
-            f =  open('idea1_samples/first_backward_second_forward/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1, context2), 'w', encoding='utf-8')
+            f = open(
+                'idea1_samples/first_backward_second_forward/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1,
+                                                                                                      context2), 'w',
+                encoding='utf-8')
         else:
-            f = open('idea1_samples/forward_fill/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1, context2), 'w', encoding='utf-8')
+            f = open('idea1_samples/forward_fill/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1, context2),
+                     'w', encoding='utf-8')
     client = GrammarBotClient()
     isSent = False
     while not isSent:
         context_sent1 = sample_model(
-                model_name='117M',
-                run_name= context1,
-                seed=None,
-                nsamples=1,
-                batch_size=1,
-                length=60,
-                temperature=1,
-                top_k=40,
-                top_p=0.0)
+            model_name='117M',
+            run_name=context1,
+            seed=None,
+            nsamples=1,
+            batch_size=1,
+            length=60,
+            temperature=1,
+            top_k=40,
+            top_p=0.0)
         if len(sent_tokenize(context_sent1)) >= 2:
             context_sent1 = ' '.join(sent_tokenize(context_sent1)[0:2])
         else:
             context_sent1 = sent_tokenize(context_sent1)[0]
-       # print('context_sent1: {}'.format(context_sent1))
-        isSent = context_sent1 != '' and any([context_sent1[-1] == punct for punct in sentence_ending]) and len(context_sent1.split()) > 15 and 'www.' not in context_sent1
+        # print('context_sent1: {}'.format(context_sent1))
+        isSent = context_sent1 != '' and any([context_sent1[-1] == punct for punct in sentence_ending]) and len(
+            context_sent1.split()) > 15 and 'www.' not in context_sent1
     context_sent1 += ' '
     context_sent1 = context_sent1.replace('\n', '')
     # 2. Find "pivot sentence" that is plausible from both domain 1 and domain 2 (maybe a 50/50 mix from both domains)
-    #pivot_sentence = 'John got down on one knee'
+    # pivot_sentence = 'John got down on one knee'
     isSent = False
     while not isSent:
         pivot_sentence = sample_combined_models_with_seed(
-        model_name='117M',
-        run_name1=context1,
-        run_name2=context2,
-        seed=None,
-        nsamples=1,
-        batch_size=1,
-        length=50,
-        temperature=1,
-        top_k=40,
-        top_k_combined=0.0,
-        top_p=0.0,
-        weight1=0.5,
-        weight2=0.5,
-        use_random=False,
-        use_swap=False,
-        use_fifty_one=False,
-        use_vanilla=False,
-        debug=False,
-        raw_text=context_sent1)
+            model_name='117M',
+            run_name1=context1,
+            run_name2=context2,
+            seed=None,
+            nsamples=1,
+            batch_size=1,
+            length=50,
+            temperature=1,
+            top_k=40,
+            top_k_combined=0.0,
+            top_p=0.0,
+            weight1=0.5,
+            weight2=0.5,
+            use_random=False,
+            use_swap=False,
+            use_fifty_one=False,
+            use_vanilla=False,
+            debug=False,
+            raw_text=context_sent1)
         pivot_sentence = sent_tokenize(pivot_sentence)[0]
-        #print(pivot_sentence)
-        isSent = pivot_sentence != '' and any([pivot_sentence[-1] == punct for punct in sentence_ending]) and len(pivot_sentence.split()) > 10 and 'www.' not in pivot_sentence
+        # print(pivot_sentence)
+        isSent = pivot_sentence != '' and any([pivot_sentence[-1] == punct for punct in sentence_ending]) and len(
+            pivot_sentence.split()) > 10 and 'www.' not in pivot_sentence
     isSent = False
-    pivot_sentence = pivot_sentence.replace('\n','')
+    pivot_sentence = pivot_sentence.replace('\n', '')
     # 3. Generate text after pivot using domain 2 (GPT-2)
     while not isSent:
         context_sent2 = sample_model_with_seed(
-        model_name='117M',
-        run_name=context2,
-        seed=None,
-        nsamples=1,
-        batch_size=1,
-        length=50,
-        temperature=1,
-        top_k=40,
-        top_p=0.0,
-        raw_text=pivot_sentence)
-        #context_sent2 = sent_tokenize(context_sent2)[0]
-        #print(context_sent2)
+            model_name='117M',
+            run_name=context2,
+            seed=None,
+            nsamples=1,
+            batch_size=1,
+            length=50,
+            temperature=1,
+            top_k=40,
+            top_p=0.0,
+            raw_text=pivot_sentence)
+        # context_sent2 = sent_tokenize(context_sent2)[0]
+        # print(context_sent2)
         if len(sent_tokenize(context_sent2)) >= 2:
             context_sent2 = ' '.join(sent_tokenize(context_sent2)[0:2])
         else:
             context_sent2 = sent_tokenize(context_sent2)[0]
-        isSent = context_sent2 != '' and any([context_sent2[-1] == punct for punct in sentence_ending]) and len(context_sent2.split()) > 15 and 'www.' not in context_sent2
-    context_sent2 = context_sent2.replace('\n','')
+        isSent = context_sent2 != '' and any([context_sent2[-1] == punct for punct in sentence_ending]) and len(
+            context_sent2.split()) > 15 and 'www.' not in context_sent2
+    context_sent2 = context_sent2.replace('\n', '')
     # 4. Use XLNet to fill in the sentence with different masks to go between domain 1 and domain 2
     # TODO Try different mask lengths and choose the "best" one
     print('context 1: {}'.format(context_sent1))
@@ -129,17 +164,19 @@ def idea1(context1, context2, run_cnt, fill_backwards1=True, fill_backwards2=Fal
     best_num_masks = 0
     start = 4
     end = 20
-    best_before = '' 
+    best_before = ''
     context2_words = context_sent2.split()
-    split_len = len(context_sent2.split())//2
+    split_len = len(context_sent2.split()) // 2
     for i in range(start, end):
         if use_gpt2:
             orig_sent1 = context_sent1 + pivot_sentence + ' '
-            is_good= False
+            is_good = False
             while not is_good:
-                first_half = sample_model_with_seed(model_name='117M', run_name='model',seed=None, nsamples=1, batch_size=1, length=i,temperature=1, top_k=40, top_p=0.0, raw_text=orig_sent1)
+                first_half = sample_model_with_seed(model_name='117M', run_name='model', seed=None, nsamples=1,
+                                                    batch_size=1, length=i, temperature=1, top_k=40, top_p=0.0,
+                                                    raw_text=orig_sent1)
                 is_good = 'www.' not in first_half
-            orig_sent1 = orig_sent1 + first_half + ' <mask> '*(i//2) + context_sent2
+            orig_sent1 = orig_sent1 + first_half + ' <mask> ' * (i // 2) + context_sent2
             print('first part: {}'.format(orig_sent1))
             f.write('\nfirst part: {}\n'.format(first_half))
             f.write('orig_sent:{}\n'.format(orig_sent1))
@@ -151,9 +188,10 @@ def idea1(context1, context2, run_cnt, fill_backwards1=True, fill_backwards2=Fal
             score = score_sentence2(context_sent1, pivot_sentence, masked_part, context_sent2)
 
         elif split_two:
-            before = context_sent1 + pivot_sentence + ' <mask> '*i + context_sent2
-            orig_sent1 = context_sent1 + pivot_sentence + ' <mask> '*(i//2) #+ ' '.join(context2_words[:split_len])
-            #orig_sent2 = ' <mask> '*(i//2) + '.' + context_sent
+            before = context_sent1 + pivot_sentence + ' <mask> ' * i + context_sent2
+            orig_sent1 = context_sent1 + pivot_sentence + ' <mask> ' * (
+                        i // 2)  # + ' '.join(context2_words[:split_len])
+            # orig_sent2 = ' <mask> '*(i//2) + '.' + context_sent
             out_sent = ''
             print('{} masks'.format(i))
             f.write('\n{} masks\n'.format(i))
@@ -163,20 +201,20 @@ def idea1(context1, context2, run_cnt, fill_backwards1=True, fill_backwards2=Fal
             print('\nout_sent1: {}\n'.format(out1))
             f.write('out_sent1: {}\n'.format(out1))
             out_sent += out1
-            #second_part = sent_tokenize(orig_sent1)[-1]
-            orig_sent2 = out1 + ' <mask> '*(i//2) + '.' + context_sent2
-            print('\norig_sent2: {}\n'.format(orig_sent2))       
+            # second_part = sent_tokenize(orig_sent1)[-1]
+            orig_sent2 = out1 + ' <mask> ' * (i // 2) + '.' + context_sent2
+            print('\norig_sent2: {}\n'.format(orig_sent2))
             f.write('orig_sent2: {}\n'.format(orig_sent2))
             out2, masked_out2 = xl_net_fill_middle(orig_sent2, fill_backwards=fill_backwards2)
             print('\nout_sent2: {}\n'.format(out2))
             f.write('out_sent2: {}\n'.format(out2))
             out_sent = out2
-            #res = client.check(masked_out2)
-            #score = -1.0*len(res.matches)*0.3 + i*0.7
+            # res = client.check(masked_out2)
+            # score = -1.0*len(res.matches)*0.3 + i*0.7
             score = score_sentence2(context_sent1, pivot_sentence, masked_out2, context_sent2)
-            #f.write('score\n\n: {}'.format(len(res.matches)))
+            # f.write('score\n\n: {}'.format(len(res.matches)))
         else:
-            orig_sent1 = context_sent1 + pivot_sentence + ' <mask> '*i + context_sent2
+            orig_sent1 = context_sent1 + pivot_sentence + ' <mask> ' * i + context_sent2
             before = orig_sent1
             print('{} masks'.format(i))
             f.write('\n{} masks\n'.format(i))
@@ -185,7 +223,7 @@ def idea1(context1, context2, run_cnt, fill_backwards1=True, fill_backwards2=Fal
             print('\nout_sent2: {}\n'.format(out_sent))
             f.write('out_sent2: {}\n'.format(out_sent))
             score = score_sentence2(context_sent1, pivot_sentence, masked_out, context_sent2)
-            
+
         if score > best_val or i == start:
             best_sent = out_sent
             best_val = score
@@ -201,12 +239,14 @@ def idea1(context1, context2, run_cnt, fill_backwards1=True, fill_backwards2=Fal
     # Note we can potentially not show the original domain sentence to the end user
     return best_sent
 
+
 def score_sentence1(context_sent1, pivot_sentence, masked_sentence, context_sent2):
     client = GrammarBotClient()
     sentence = context_sent1 + pivot_sentence + masked_sentence + context_sent2
     res = client.check(sentence)
     score = len(res.matches)
     return score
+
 
 def score_grammar(sentence):
     client = GrammarBotClient()
@@ -229,19 +269,21 @@ def score_sentence2(context_sent1, pivot_sentence, masked_sentence, context_sent
     if sentiment_difference2 < 0.0 and masked_sent >= 0.0:
         sentiment_difference2 = 0.0
     # need to figure out a score with sentiment
-    #if (masked_sent > 0 and sent2 < 0) or (sent2 > 0 and masked_sent < 0):
+    # if (masked_sent > 0 and sent2 < 0) or (sent2 > 0 and masked_sent < 0):
     #    score += 1
-    #if (pivot > 0 and sent2 < 0) or (sent2 > 0 and pivot < 0):
+    # if (pivot > 0 and sent2 < 0) or (sent2 > 0 and pivot < 0):
     #    score += 1
     grammar_score = 0
-    grammar_score = score_sentence1(context_sent1, pivot_sentence, masked_sentence, context_sent2)/len_ex
-    score = (sentiment_difference1 + sentiment_difference2 - grammar_score)/4
+    grammar_score = score_sentence1(context_sent1, pivot_sentence, masked_sentence, context_sent2) / len_ex
+    score = (sentiment_difference1 + sentiment_difference2 - grammar_score) / 4
     return score
 
 
 def isSentence(sentence, at_least_length=10):
     has_word = len(sentence.split()) > 0
-    return has_word and sentence != '' and any([sentence[-1] == punct for punct in sentence_ending]) and len(sentence.split()) > at_least_length and 'www.' not in sentence and 'http' not in sentence
+    return has_word and sentence != '' and any([sentence[-1] == punct for punct in sentence_ending]) and len(
+        sentence.split()) > at_least_length and 'www.' not in sentence and 'http' not in sentence
+
 
 # TODO Idea 2:
 # 1. Find a word with multiple senses (word)
@@ -256,17 +298,18 @@ def idea2(context1, context2, word='', related_word='', word2='', run_cnt=0, sen
         print('word: {}'.format(word))
     # Generate a throw away word to start out the XLNet
     isSent = False
-    f = open('idea2_samples/idea2_{}_{}_{}_{}_{}_{}.txt'.format(run_cnt, context1, context2, word, related_word, word2), 'w', encoding='utf-8')
+    f = open('idea2_samples/idea2_{}_{}_{}_{}_{}_{}.txt'.format(run_cnt, context1, context2, word, related_word, word2),
+             'w', encoding='utf-8')
     while not isSent:
         context_sent1_throw = sample_model(model_name='117M',
-                run_name=context1,
-                seed=None,
-                nsamples=1,
-                batch_size=1,
-                length=sentence_len,
-                temperature=1,
-                top_k=40,
-                top_p=0.0)
+                                           run_name=context1,
+                                           seed=None,
+                                           nsamples=1,
+                                           batch_size=1,
+                                           length=sentence_len,
+                                           temperature=1,
+                                           top_k=40,
+                                           top_p=0.0)
         context_sent1_throw = sent_tokenize(context_sent1_throw)
         context_sent1_throw = ' '.join(context_sent1_throw[:-1])
         isSent = isSentence(context_sent1_throw)
@@ -274,21 +317,21 @@ def idea2(context1, context2, word='', related_word='', word2='', run_cnt=0, sen
     f.write('context_sent1_throw: {}\n'.format(context_sent1_throw))
     # 2. Generate sentence from domain 1 (GPT-2) that uses that word
     seed_text1 = xl_net_fill_begining(context_sent1_throw, word, start=1, end=6, k=5, avoid=avoid_xlnet_idea2)
-    #seed_text1 = 'He {} '.format(word)
+    # seed_text1 = 'He {} '.format(word)
     print('seed_text1: {}'.format(seed_text1))
     f.write('\nseed_text1: {}\n'.format(seed_text1))
     isSent = False
     while not isSent:
         context_sent1 = sample_model_with_seed(model_name='117M',
-                run_name=context1,
-                seed=None,
-                nsamples=1,
-                batch_size=1,
-                length=sentence_len,
-                temperature=1,
-                top_k=40,
-                top_p=0.0,
-                raw_text=seed_text1)
+                                               run_name=context1,
+                                               seed=None,
+                                               nsamples=1,
+                                               batch_size=1,
+                                               length=sentence_len,
+                                               temperature=1,
+                                               top_k=40,
+                                               top_p=0.0,
+                                               raw_text=seed_text1)
         context_sent1 = sent_tokenize(seed_text1 + context_sent1)
         context_sent1 = ' '.join(context_sent1[:-1])
         isSent = isSentence(context_sent1)
@@ -302,41 +345,41 @@ def idea2(context1, context2, word='', related_word='', word2='', run_cnt=0, sen
     isSent = False
     while not isSent:
         context_sent2_throw = sample_model(model_name='117M',
-                run_name=context2,
-                seed=None,
-                nsamples=1,
-                batch_size=1,
-                length=sentence_len,
-                temperature=1,
-                top_k=40,
-                top_p=0.0)
-        context_sent2_throw = sent_tokenize(context_sent2_throw)
-        context_sent2_throw = ' '.join(context_sent2_throw[:-1])
-        isSent = isSentence(context_sent2_throw)
-    print('context_sent2_throw: {}'.format(context_sent2_throw))
-    # 2. Generate sentence from domain 1 (GPT-2) that uses that word
-    seed_text2 = xl_net_fill_begining(context_sent2_throw, related_word, start=1, end=6, k=5, avoid=avoid_xlnet_idea2)
-    print('seed_text2: {}'.format(seed_text2))     
-    # 4. Generate sentence using that related word in domain 2.
-    #seed_text2 = 'The {} '.format(related_word)
-    isSent = False
-    while not isSent:
-        context_sent2 = sample_model_with_seed(model_name='117M',
                                            run_name=context2,
                                            seed=None,
                                            nsamples=1,
                                            batch_size=1,
                                            length=sentence_len,
                                            temperature=1,
-                                           top_k=50,
-                                           top_p=0.0,
-                                           raw_text=context_sent1 + ' ' + seed_text2
-                                           )
+                                           top_k=40,
+                                           top_p=0.0)
+        context_sent2_throw = sent_tokenize(context_sent2_throw)
+        context_sent2_throw = ' '.join(context_sent2_throw[:-1])
+        isSent = isSentence(context_sent2_throw)
+    print('context_sent2_throw: {}'.format(context_sent2_throw))
+    # 2. Generate sentence from domain 1 (GPT-2) that uses that word
+    seed_text2 = xl_net_fill_begining(context_sent2_throw, related_word, start=1, end=6, k=5, avoid=avoid_xlnet_idea2)
+    print('seed_text2: {}'.format(seed_text2))
+    # 4. Generate sentence using that related word in domain 2.
+    # seed_text2 = 'The {} '.format(related_word)
+    isSent = False
+    while not isSent:
+        context_sent2 = sample_model_with_seed(model_name='117M',
+                                               run_name=context2,
+                                               seed=None,
+                                               nsamples=1,
+                                               batch_size=1,
+                                               length=sentence_len,
+                                               temperature=1,
+                                               top_k=50,
+                                               top_p=0.0,
+                                               raw_text=context_sent1 + ' ' + seed_text2
+                                               )
         context_sent2 = sent_tokenize(seed_text2 + context_sent2)
-        context_sent2 = ' '.join(context_sent2[:-1]) 
+        context_sent2 = ' '.join(context_sent2[:-1])
         isSent = isSentence(context_sent2)
     print('context_sent2: {}'.format(context_sent2))
-    # 5. Find word only used in domain 2 
+    # 5. Find word only used in domain 2
     if word2 == '':
         word2 = 'pancake'
     else:
@@ -344,33 +387,33 @@ def idea2(context1, context2, word='', related_word='', word2='', run_cnt=0, sen
     isSent = False
     while not isSent:
         context_sent2_throw2 = sample_model(model_name='117M',
-                run_name=context2,
-                seed=None,
-                nsamples=1,
-                batch_size=1,
-                length=sentence_len,
-                temperature=1,
-                top_k=40,
-                top_p=0.0)
+                                            run_name=context2,
+                                            seed=None,
+                                            nsamples=1,
+                                            batch_size=1,
+                                            length=sentence_len,
+                                            temperature=1,
+                                            top_k=40,
+                                            top_p=0.0)
         context_sent2_throw2 = sent_tokenize(context_sent2_throw2)
         context_sent2_throw2 = ' '.join(context_sent2_throw2[:-1])
         isSent = isSentence(context_sent2_throw2)
     print('context_sent2_throw2: {}'.format(context_sent2_throw2))
     seed_text3 = xl_net_fill_begining(context_sent2_throw2, word2, start=1, end=6, k=5, avoid=avoid_xlnet_idea2)
-    print('seed_text3: {}'.format(seed_text3))           
-    #seed_text3 = 'This {}'.format(word2)
+    print('seed_text3: {}'.format(seed_text3))
+    # seed_text3 = 'This {}'.format(word2)
     isSent = False
     while not isSent:
         context_sent3 = sample_model_with_seed(model_name='117M',
-                run_name=context2,
-                seed=None,
-                nsamples=1,
-                batch_size=1,
-                length = sentence_len,
-                temperature=1,
-                top_k=50,
-                top_p=0.0,
-                raw_text=context_sent1 + ' ' + context_sent2 + ' ' + seed_text3)
+                                               run_name=context2,
+                                               seed=None,
+                                               nsamples=1,
+                                               batch_size=1,
+                                               length=sentence_len,
+                                               temperature=1,
+                                               top_k=50,
+                                               top_p=0.0,
+                                               raw_text=context_sent1 + ' ' + context_sent2 + ' ' + seed_text3)
         context_sent3 = sent_tokenize(seed_text3 + context_sent3)
         context_sent3 = ' '.join(context_sent3[:-1])
         isSent = isSentence(context_sent3)
@@ -391,14 +434,15 @@ def idea2(context1, context2, word='', related_word='', word2='', run_cnt=0, sen
     f.write('seed_text3: {}\n'.format(seed_text3))
     f.write('context_sent3: {}\n'.format(context_sent3))
     f.write('\n\n\n')
-    #if remove_middle:
+    # if remove_middle:
     #    f.write(context_sent1 + ' ' + context_sent3)
     #    f.close()
     #    return context_sent1 + ' ' + context_sent3
-    #else:
+    # else:
     f.write(context_sent1 + ' ' + context_sent2 + ' ' + context_sent3)
     f.close()
     return context_sent1 + ' ' + context_sent3
+
 
 # 1. Find a word with multiple senses (word)
 # 2. Generate sentence from domain 1 (GPT-2) that uses that word
@@ -413,10 +457,24 @@ def idea2_modified(context1, context2, word='', run_cnt=0, sentence_len=40, use_
         print('word: {}'.format(word))
     # Generate a throw away word to start out the XLNet
     isSent = False
-    if use_leading:
-        f = open('idea2_one_word_samples/use_leading/idea2_{}_len_{}_{}_{}_{}.txt'.format(run_cnt,sentence_len, context1, context2, word), 'w', encoding='utf-8')
+    if use_leading and use_combo:
+        f = open(
+            'idea2_one_word_samples/use_leading/use_combo/idea2_{}_len_{}_{}_{}_{}.txt'.format(run_cnt, sentence_len, context1,
+                                                                                     context2, word), 'w',
+            encoding='utf-8')
+    elif use_leading:
+        f = open(
+            'idea2_one_word_samples/use_leading/idea2_{}_len_{}_{}_{}_{}.txt'.format(run_cnt, sentence_len, context1,
+                                                                                     context2, word), 'w',
+            encoding='utf-8')
+    elif use_combo:
+        f = open(
+            'idea2_one_word_samples/use_combo/idea2_{}_len_{}_{}_{}_{}.txt'.format(run_cnt, sentence_len, context1,
+                                                                                     context2, word), 'w',
+            encoding='utf-8')
     else:
-        f = open('idea2_one_word_samples/idea2_{}_len_{}_{}_{}_{}.txt'.format(run_cnt,sentence_len, context1, context2, word),'w', encoding='utf-8')
+        f = open('idea2_one_word_samples/idea2_{}_len_{}_{}_{}_{}.txt'.format(run_cnt, sentence_len, context1, context2,
+                                                                              word), 'w', encoding='utf-8')
     # Used to generate a leading sentence for XLNet
     while not isSent:
         context_sent1_throw = sample_model(model_name='117M',
@@ -495,24 +553,49 @@ def idea2_modified(context1, context2, word='', run_cnt=0, sentence_len=40, use_
     else:
         context2_input = context_sent1 + ' ' + seed_text2
 
-
     # 3. Generate sentence using that word in domain 2.
     isSent = False
-    while not isSent:
-        context_sent2 = sample_model_with_seed(model_name='117M',
-                                               run_name=context2,
-                                               seed=None,
-                                               nsamples=1,
-                                               batch_size=1,
-                                               length=sentence_len,
-                                               temperature=1,
-                                               top_k=50,
-                                               top_p=0.0,
-                                               raw_text=context2_input
-                                               )
-        context_sent2 = sent_tokenize(seed_text2 + context_sent2)
-        context_sent2 = ' '.join(context_sent2[:-1])
-        isSent = isSentence(context_sent2)
+    if use_combo:
+        while not isSent:
+            context_sent2 = sample_combined_models_with_seed(
+                model_name='117M',
+                run_name1=context1,
+                run_name2=context2,
+                seed=None,
+                nsamples=1,
+                batch_size=1,
+                length=50,
+                temperature=1,
+                top_k=40,
+                top_k_combined=0.0,
+                top_p=0.0,
+                weight1=0.3,
+                weight2=0.7,
+                use_random=False,
+                use_swap=False,
+                use_fifty_one=False,
+                use_vanilla=False,
+                debug=False,
+                raw_text=context_sent1)
+            context_sent2 = sent_tokenize(seed_text2 + context_sent2)
+            context_sent2 = ' '.join(context_sent2[:-1])
+            isSent = isSentence(context_sent2)
+    else:
+        while not isSent:
+            context_sent2 = sample_model_with_seed(model_name='117M',
+                                                   run_name=context2,
+                                                   seed=None,
+                                                   nsamples=1,
+                                                   batch_size=1,
+                                                   length=sentence_len,
+                                                   temperature=1,
+                                                   top_k=50,
+                                                   top_p=0.0,
+                                                   raw_text=context2_input
+                                                   )
+            context_sent2 = sent_tokenize(seed_text2 + context_sent2)
+            context_sent2 = ' '.join(context_sent2[:-1])
+            isSent = isSentence(context_sent2)
 
     print('context_sent2: {}'.format(context_sent2))
     print('\n\n')
@@ -538,6 +621,7 @@ def get_sentiment(sentence):
     sentiment_analyzer = SentimentIntensityAnalyzer()
     return sentiment_analyzer.polarity_scores(sentence)['compound']
 
+
 def runXL_old(orig_sent, fill_backwards=False, topk=5):
     # getting the model
     tokenizer = XLNetTokenizer.from_pretrained('xlnet-large-cased')
@@ -552,7 +636,7 @@ def runXL_old(orig_sent, fill_backwards=False, topk=5):
     max_cnt = sum([1 for word in orig_sent.split() if word == '<mask>']) * 10
     outf.write(orig_sent + '\n')
     while '<mask>' in orig_sent:
-        #max_cnt -= 1
+        # max_cnt -= 1
         input_ids = torch.tensor(tokenizer.encode(orig_sent, add_special_tokens=True)).unsqueeze(0)
         perm_mask = torch.zeros((1, input_ids.shape[1], input_ids.shape[1]), dtype=torch.float)
         masked = input_ids == 6
@@ -564,7 +648,8 @@ def runXL_old(orig_sent, fill_backwards=False, topk=5):
 
         # Run the model
         outputs = model(input_ids, perm_mask=perm_mask, target_mapping=target_mapping)
-        next_token_logits = outputs[0]  # Output has shape [target_mapping.size(0), target_mapping.size(1), config.vocab_size]
+        next_token_logits = outputs[
+            0]  # Output has shape [target_mapping.size(0), target_mapping.size(1), config.vocab_size]
         out_sentence = orig_sent.split()
         first_mask_ix = out_sentence.index('<mask>')
 
@@ -574,57 +659,57 @@ def runXL_old(orig_sent, fill_backwards=False, topk=5):
         if fill_backwards:
             ranger = list(range(len(predicts)))
         else:
-            ranger = list(range(len(predicts)-1, -1, -1))
+            ranger = list(range(len(predicts) - 1, -1, -1))
         for i in ranger:
-            #print("mask", i)
+            # print("mask", i)
             outf.write("mask {}\n".format(i))
             if max_cnt > 0:
                 vals, idxs = torch.topk(next_token_logits[0][i], topk)
             else:
                 vals, idxs = torch.topk(next_token_logits[0][i], topk)
-            #print(vals, idxs)
-            #print(idxs.tolist())
+            # print(vals, idxs)
+            # print(idxs.tolist())
             idxs1 = idxs.tolist()
-            #filled_one = False
-            #new_words = [tokenizer.decode(idx) for idx in idxs1]
-            #print('new_words {}'.format(new_words))
-            #if fill_backwards:
+            # filled_one = False
+            # new_words = [tokenizer.decode(idx) for idx in idxs1]
+            # print('new_words {}'.format(new_words))
+            # if fill_backwards:
             #    ranger2  = range(len(idxs1)-1, -1, -1)
-            #else:
+            # else:
             ranger2 = range(len(idxs1))
             print('Possible Words: {}'.format([tokenizer.decode(idxs1[ix]) for ix in ranger2]))
             print('Should be {}: {}'.format(len(list(ranger2)), topk))
             found = False
             ix = 0
             while not found and ix < len(idxs1):
-            #for ix in ranger2:
+                # for ix in ranger2:
                 idx = idxs1[ix]
                 new_word = tokenizer.decode(idx)
-                #if max_cnt > 0 and new_word not in exclude_words:
-                prev_word = out_sentence[replacements[replace]-1]
+                # if max_cnt > 0 and new_word not in exclude_words:
+                prev_word = out_sentence[replacements[replace] - 1]
                 print('potential word: {} previous word: {}'.format(new_word, prev_word))
                 if new_word not in exclude_words and new_word != prev_word:
                     outf.write('new: {}\n'.format(new_word))
                     out_sentence[replacements[replace]] = new_word
-                    #print('\n***************************************************************\n')
-                    #print('cur_sent replacing: {}'.format(out_sentence))
-                    #if new_word not in sentence_ending:
+                    # print('\n***************************************************************\n')
+                    # print('cur_sent replacing: {}'.format(out_sentence))
+                    # if new_word not in sentence_ending:
                     seen_words.append(new_word)
-                    #prev_word = new_word
-                    #filled_one = True
+                    # prev_word = new_word
+                    # filled_one = True
                     replace += 1
                     found = True
                 elif max_cnt > 0 and new_word not in exclude_words:
-                    #print('Already Seen: {}'.format(new_word))
+                    # print('Already Seen: {}'.format(new_word))
                     outf.write('Already Seen: {}\n'.format(new_word))
                 ix += 1
-                #elif max_cnt <= 0 and new_word not in exclude_words:
-                    #print('max_cnt exceeded, just filling in the sentence')
-                    #outf.write('max_cnt exceeded, just filling in the sentence\n')
-                    #outf.write('filling: {}'.format(new_word))
-                    #out_sentence[replacements[replace]] = new_word
-                    #print(out_sentence)
-                    #prev_word = new_word
+                # elif max_cnt <= 0 and new_word not in exclude_words:
+                # print('max_cnt exceeded, just filling in the sentence')
+                # outf.write('max_cnt exceeded, just filling in the sentence\n')
+                # outf.write('filling: {}'.format(new_word))
+                # out_sentence[replacements[replace]] = new_word
+                # print(out_sentence)
+                # prev_word = new_word
             # replace +=1
         orig_sent = ' '.join(out_sentence)
         print(orig_sent)
@@ -651,9 +736,10 @@ def xl_net_fill_middle(orig_sent, topk=10, fill_backwards=False):
             target_mapping[0][n][p] = 1.0
 
         outputs = model(input_ids, perm_mask=perm_mask, target_mapping=target_mapping)
-        next_token_logits = outputs[0]  # Output has shape [target_mapping.size(0), target_mapping.size(1), config.vocab_size]
+        next_token_logits = outputs[
+            0]  # Output has shape [target_mapping.size(0), target_mapping.size(1), config.vocab_size]
         if fill_backwards:
-            ranger = list(range(len(predicts)-1, -1, -1))
+            ranger = list(range(len(predicts) - 1, -1, -1))
         else:
             ranger = list(range(len(predicts)))
         for i in ranger[0:1]:
@@ -688,7 +774,8 @@ def xl_net_fill_middle(orig_sent, topk=10, fill_backwards=False):
                     found = True
                 # We are dealing with a middle word
                 # pw just has to not be one of the excluded word and not the same as the word before and the word after
-                elif not any([punct in word_before for punct in sentence_ending]) and not any([punct in word_after for punct in sentence_ending]):
+                elif not any([punct in word_before for punct in sentence_ending]) and not any(
+                        [punct in word_after for punct in sentence_ending]):
                     if pw not in exclude_words and word_before.lower() != pw.lower() and word_after.lower() != pw.lower():
                         found = True
                 else:
@@ -704,6 +791,7 @@ def xl_net_fill_middle(orig_sent, topk=10, fill_backwards=False):
         orig_sent = ' '.join(out_sent)
     masked_out = ' '.join(masked_out)
     return orig_sent, masked_out
+
 
 def xl_net_fill_begining(context_sent_throw, word, start=1, end=6, k=5, avoid=None):
     tokenizer = XLNetTokenizer.from_pretrained('xlnet-large-cased')
@@ -732,12 +820,12 @@ def xl_net_fill_begining(context_sent_throw, word, start=1, end=6, k=5, avoid=No
             # ranger = list(range(len(predicts)-1, -1, -1))
             ranger = list(range(len(predicts)))
             for i in ranger[0:1]:
-                #print("mask", i)
+                # print("mask", i)
                 vals, idxs = torch.topk(next_token_logits[0][i], k)
                 word_list = [tokenizer.decode(idx) for idx in idxs.tolist()]
                 # print(vals, idxs)
                 # print(idxs.tolist())
-                #print('Top {}: {}'.format(k, word_list))
+                # print('Top {}: {}'.format(k, word_list))
                 found = False
                 found_ix = 0
                 while not found and found_ix < k - 1:
@@ -755,12 +843,12 @@ def xl_net_fill_begining(context_sent_throw, word, start=1, end=6, k=5, avoid=No
             orig_sent = ' '.join(out_sent)
         first_last = orig_sent.split(last_word)
         output.append(first_last)
-        
+
     best_sent = output[0][-1]
     best_score = score_grammar(output[0][1])
     for i, first_last in enumerate(output):
-        #print('mask num: {}'.format(start + i))
-        #for text in first_last:
+        # print('mask num: {}'.format(start + i))
+        # for text in first_last:
         #    print('\nOut Sent: {}\n'.format(text))
         score = score_grammar(first_last[1])
         if score < best_score and all([punct not in first_last[1] for punct in sentence_ending]):
@@ -768,28 +856,34 @@ def xl_net_fill_begining(context_sent_throw, word, start=1, end=6, k=5, avoid=No
             best_score = score
     return best_sent
 
+
 def main_idea1():
-    pairs= [('gifted2','gift_ideas2'), ('strength_training2', 'cookingforbeginners2')]#, ('scifi','cornell_supreme'),('gift_ideas2','gifted2'), ('strength_training2','cookingforbeginners2'), ('cookingforbeginners2','strength_training2'), ('dnd_bios2', 'kdrama_finetune')]
+    pairs = [('gifted2', 'gift_ideas2'), ('strength_training2',
+                                          'cookingforbeginners2')]  # , ('scifi','cornell_supreme'),('gift_ideas2','gifted2'), ('strength_training2','cookingforbeginners2'), ('cookingforbeginners2','strength_training2'), ('dnd_bios2', 'kdrama_finetune')]
     for pair in pairs:
         for run in range(2):
             out = idea1(pair[0], pair[1], run, fill_backwards1=False, fill_backwards2=False, use_gpt2=False)
 
+
 def main_idea2():
-    pairs = [('strength_training2', 'cookingforbeginners2', 'lifted', 'lifted', 'stack'), ('gifted2', 'gift_ideas2', 'gifted', 'gifted', 'child'), ('dnd_bios2', 'gift_ideas2', 'elf', 'elf', 'bow')]
+    pairs = [('strength_training2', 'cookingforbeginners2', 'lifted', 'lifted', 'stack'),
+             ('gifted2', 'gift_ideas2', 'gifted', 'gifted', 'child'), ('dnd_bios2', 'gift_ideas2', 'elf', 'elf', 'bow')]
     for pair in pairs:
         for run in range(3):
-            out = idea2(pair[0],pair[1], word=pair[2], related_word=pair[3], word2=pair[4], run_cnt=run, sentence_len=30)
+            out = idea2(pair[0], pair[1], word=pair[2], related_word=pair[3], word2=pair[4], run_cnt=run,
+                        sentence_len=30)
             print('\n\n\n' + out)
-            
-            
+
+
 def main_idea2_modified():
-   # pairs = [('strength_training2', 'cookingforbeginners2', 'lifted'), ('strength_training2', 'cookingforbeginners2', 'stack'), ('gifted2', 'gift_ideas2', 'gifted'), ('dnd_bios2', 'gift_ideas2', 'elf'), ('dnd_bios2', 'gift_ideas2', 'bow'), ('strength_training2', 'cookingforbeginners2', 'leg')]
-   pairs = [('gifted2', 'gift_ideas2', 'gifted')]
-   for pair in pairs:
+    # pairs = [('strength_training2', 'cookingforbeginners2', 'lifted'), ('strength_training2', 'cookingforbeginners2', 'stack'), ('gifted2', 'gift_ideas2', 'gifted'), ('dnd_bios2', 'gift_ideas2', 'elf'), ('dnd_bios2', 'gift_ideas2', 'bow'), ('strength_training2', 'cookingforbeginners2', 'leg')]
+    pairs = [('gifted2', 'gift_ideas2', 'gifted')]
+    for pair in pairs:
         for run in range(4):
-            out = idea2_modified(pair[0], pair[1], pair[2], sentence_len=30, run_cnt=run, use_leading=False, use_combo=True)
+            out = idea2_modified(pair[0], pair[1], pair[2], sentence_len=30, run_cnt=run, use_leading=False,
+                                 use_combo=True)
             print('\n\n\n' + out)
-            
-            
+
+
 if __name__ == '__main__':
     main_idea2_modified()
