@@ -214,6 +214,7 @@ def score_grammar(sentence):
     score = len(res.matches)
     return score
 
+
 def score_sentence2(context_sent1, pivot_sentence, masked_sentence, context_sent2):
     sent1 = get_sentiment(context_sent1)
     pivot = get_sentiment(pivot_sentence)
@@ -404,7 +405,7 @@ def idea2(context1, context2, word='', related_word='', word2='', run_cnt=0, sen
 # 3a. Could possibly generate lead sentence in domain 2
 # 3. Generate sentence from domain 2 (GPT-2) that uses that word
 # 4. Generate sentence using that related word.
-def idea2_modified(context1, context2, word='', run_cnt=0, sentence_len=40, use_leading=True):
+def idea2_modified(context1, context2, word='', run_cnt=0, sentence_len=40, use_leading=True, use_combo=False):
     # 1. Find a word with multiple senses
     if word == '':
         word = 'gifted'
@@ -412,8 +413,10 @@ def idea2_modified(context1, context2, word='', run_cnt=0, sentence_len=40, use_
         print('word: {}'.format(word))
     # Generate a throw away word to start out the XLNet
     isSent = False
-    f = open('idea2_one_word_samples/idea2_{}_{}_{}_{}.txt'.format(run_cnt, context1, context2, word),
-             'w', encoding='utf-8')
+    if use_leading:
+        f = open('idea2_one_word_samples/use_leading/idea2_{}_len_{}_{}_{}_{}.txt'.format(run_cnt,sentence_len, context1, context2, word), 'w', encoding='utf-8')
+    else:
+        f = open('idea2_one_word_samples/idea2_{}_len_{}_{}_{}_{}.txt'.format(run_cnt,sentence_len, context1, context2, word),'w', encoding='utf-8')
     # Used to generate a leading sentence for XLNet
     while not isSent:
         context_sent1_throw = sample_model(model_name='117M',
@@ -760,7 +763,7 @@ def xl_net_fill_begining(context_sent_throw, word, start=1, end=6, k=5, avoid=No
         #for text in first_last:
         #    print('\nOut Sent: {}\n'.format(text))
         score = score_grammar(first_last[1])
-        if score < best_score:
+        if score < best_score and all([punct not in first_last[1] for punct in sentence_ending]):
             best_sent = first_last[1]
             best_score = score
     return best_sent
@@ -780,11 +783,11 @@ def main_idea2():
             
             
 def main_idea2_modified():
-    pairs = [('strength_training2', 'cookingforbeginners2', 'lifted'),
-             ('gifted2', 'gift_ideas2', 'gifted'), ('dnd_bios2', 'gift_ideas2', 'elf')]
-    for pair in pairs:
-        for run in range(3):
-            out = idea2_modified(pair[0], pair[1], pair[2], sentence_len=30)
+   # pairs = [('strength_training2', 'cookingforbeginners2', 'lifted'), ('strength_training2', 'cookingforbeginners2', 'stack'), ('gifted2', 'gift_ideas2', 'gifted'), ('dnd_bios2', 'gift_ideas2', 'elf'), ('dnd_bios2', 'gift_ideas2', 'bow'), ('strength_training2', 'cookingforbeginners2', 'leg')]
+   pairs = [('gifted2', 'gift_ideas2', 'gifted')]
+   for pair in pairs:
+        for run in range(4):
+            out = idea2_modified(pair[0], pair[1], pair[2], sentence_len=30, run_cnt=run, use_leading=False, use_combo=True)
             print('\n\n\n' + out)
             
             
