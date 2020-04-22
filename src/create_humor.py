@@ -304,7 +304,7 @@ def isSentence(sentence, at_least_length=10):
     has_word = len(sentence.split()) > 0
     sentence = sentence.strip()
     return has_word and sentence != '' and any([sentence[-1] == punct for punct in sentence_ending]) and len(
-        sentence.split()) > at_least_length and 'www.' not in sentence and 'http' not in sentence
+        sentence.split()) > at_least_length and 'www.' not in sentence and 'http' not in sentence and '/r' not in sentence
 
 
 def isSentenceBeginning(sb, at_least_length=3):
@@ -469,7 +469,7 @@ def idea2(context1, context2, word='', related_word='', word2='', run_cnt=0, sen
     # else:
     f.write(context_sent1 + ' ' + context_sent2 + ' ' + context_sent3)
     f.close()
-    return context_sent1 + ' ' + context_setn2 + ' ' + context_sent3
+    return context_sent1 + ' ' + context_sent2 + ' ' + context_sent3
 
 
 # 1. Find a word with multiple senses (word)
@@ -868,7 +868,7 @@ def xl_net_fill_begining(context_sent_throw, word, start=1, end=6, k=5, avoid=No
                         found = True
                     elif replacements[i] == 0 and pw not in avoid:
                         found = True
-                    elif replacements[i] == len(out_sent) - 1:
+                    elif replacements[i] == len(out_sent) - 1 and pw not in sentence_ending:
                         found = True
                     else:
                         found_ix += 1
@@ -884,7 +884,12 @@ def xl_net_fill_begining(context_sent_throw, word, start=1, end=6, k=5, avoid=No
         # for text in first_last:
         #    print('\nOut Sent: {}\n'.format(text))
         score = lm_scoring(first_last[1])
-        if best_score is None or (score > best_score and all([punct not in first_last[1] for punct in sentence_ending]) and isSentenceBeginning(first_last[1])):
+        word_appears_once = sum([w.lower() == word for w in first_last[1].split()]) == 1
+        if best_score is None:
+            if word_appears_once and isSentenceBeginning(first_last[1]):
+                best_sent = first_last[1]
+                best_score = score
+        elif word_appears_once and score > best_score and all([punct not in first_last[1] for punct in sentence_ending]) and isSentenceBeginning(first_last[1]):
             best_sent = first_last[1]
             best_score = score
     return best_sent
@@ -903,7 +908,7 @@ def main_idea2():
              ('gifted2', 'gift_ideas2', 'gifted', 'gifted', 'child')]#, ('dnd_bios2', 'gift_ideas2', 'elf', 'elf', 'bow'), ('strength_training2', 'cookingforbeginners2', 'twist', 'twist', 'candy'), ('strength_training2', 'cookingforbeginners2', 'roll', 'roll', 'butter'), ('strength_training2', 'cookingforbeginners2', 'beat', 'beat', 'eggs'), ('strength_training2', 'cookingforbeginners2', 'press', 'press', 'tomato')]
    for pair in pairs:
        for run in range(3):
-           out = idea2(pair[0], pair[1], word=pair[2], related_word=pair[3], word2=pair[4], run_cnt=run, sentence_len=60)
+           out = idea2(pair[0], pair[1], word=pair[2], related_word=pair[3], word2=pair[4], run_cnt=run, sentence_len=30)
            print('\n\n\n' + out)
 
 
