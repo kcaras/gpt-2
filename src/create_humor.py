@@ -3,6 +3,7 @@ from generate_unconditional_samples import sample_combined_models, sample_model,
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from transformers import XLNetTokenizer, XLNetLMHeadModel
 import torch
+from lm_scorer.models.auto import AutoLMScorer as LMScorer
 from nltk import sent_tokenize
 from grammarbot import GrammarBotClient
 import nltk
@@ -26,62 +27,62 @@ def idea1(context1, context2, run_cnt, fill_backwards1=True, fill_backwards2=Fal
     # context_sent1 = 'John and Sue walked together on the beach'
     if split_two:
         if fill_backwards1 and fill_backwards2:
-            f = open('idea1_samples/backward_fill/split_two/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1,
+            f = open('idea1_samples/backward_fill/split_two/lm_scoring_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1,
                                                                                                      context2), 'w',
                      encoding='utf-8')
         elif not fill_backwards1 and fill_backwards2:
             f = open(
-                'idea1_samples/first_forward_second_backward/split_two/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt,
+                'idea1_samples/first_forward_second_backward/split_two/lm_scoring_{}_idea1_{}_{}_out.txt'.format(run_cnt,
                                                                                                                 context1,
                                                                                                                 context2),
                 'w', encoding='utf-8')
         elif fill_backwards1 and not fill_backwards2:
             f = open(
-                'idea1_samples/first_backward_second_forward/split_two/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt,
+                'idea1_samples/first_backward_second_forward/split_two/lm_scoring_{}_idea1_{}_{}_out.txt'.format(run_cnt,
                                                                                                                 context1,
                                                                                                                 context2),
                 'w', encoding='utf-8')
         else:
-            f = open('idea1_samples/forward_fill/split_two/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1,
+            f = open('idea1_samples/forward_fill/split_two/scoring_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1,
                                                                                                     context2), 'w',
                      encoding='utf-8')
     if use_gpt2:
         if fill_backwards1 and fill_backwards2:
             f = open(
-                'idea1_samples/backward_fill/gpt2/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1, context2),
+                'idea1_samples/backward_fill/gpt2/lm_scoring_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1, context2),
                 'w', encoding='utf-8')
         elif not fill_backwards1 and fill_backwards2:
-            f = open('idea1_samples/first_forward_second_backward/gpt2/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt,
+            f = open('idea1_samples/first_forward_second_backward/gpt2/lm_scoring_{}_idea1_{}_{}_out.txt'.format(run_cnt,
                                                                                                                 context1,
                                                                                                                 context2),
                      'w', encoding='utf-8')
         elif fill_backwards1 and not fill_backwards2:
-            f = open('idea1_samples/first_backward_second_forward/gpt2/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt,
+            f = open('idea1_samples/first_backward_second_forward/gpt2/lm_scoring_{}_idea1_{}_{}_out.txt'.format(run_cnt,
                                                                                                                 context1,
                                                                                                                 context2),
                      'w', encoding='utf-8')
         else:
             f = open(
-                'idea1_samples/forward_fill/gpt2/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1, context2),
+                'idea1_samples/forward_fill/gpt2/lm_scoring_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1, context2),
                 'w', encoding='utf-8')
     else:
         if fill_backwards1 and fill_backwards2:
-            f = open('idea1_samples/backward_fill/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1, context2),
+            f = open('idea1_samples/backward_fill/lm_scoring_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1, context2),
                      'w', encoding='utf-8')
         elif not fill_backwards1 and fill_backwards2:
             f = open(
-                'idea1_samples/first_forward_second_backward/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1,
+                'idea1_samples/first_forward_second_backward/lm_scoring_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1,
                                                                                                       context2), 'w',
                 encoding='utf-8')
         elif fill_backwards1 and not fill_backwards2:
             f = open(
-                'idea1_samples/first_backward_second_forward/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1,
+                'idea1_samples/first_backward_second_forward/lm_scoring_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1,
                                                                                                       context2), 'w',
                 encoding='utf-8')
         else:
-            f = open('idea1_samples/forward_fill/prev_word_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1, context2),
+            f = open('idea1_samples/forward_fill/lm_scoring_{}_idea1_{}_{}_out.txt'.format(run_cnt, context1, context2),
                      'w', encoding='utf-8')
-    client = GrammarBotClient()
+    #client = GrammarBotClient()
     isSent = False
     while not isSent:
         context_sent1 = sample_model(
@@ -99,8 +100,7 @@ def idea1(context1, context2, run_cnt, fill_backwards1=True, fill_backwards2=Fal
         else:
             context_sent1 = sent_tokenize(context_sent1)[0]
         # print('context_sent1: {}'.format(context_sent1))
-        isSent = context_sent1 != '' and any([context_sent1[-1] == punct for punct in sentence_ending]) and len(
-            context_sent1.split()) > 15 and 'www.' not in context_sent1
+        isSent = isSentence(context_sent1)
     context_sent1 += ' '
     context_sent1 = context_sent1.replace('\n', '')
     # 2. Find "pivot sentence" that is plausible from both domain 1 and domain 2 (maybe a 50/50 mix from both domains)
@@ -129,8 +129,7 @@ def idea1(context1, context2, run_cnt, fill_backwards1=True, fill_backwards2=Fal
             raw_text=context_sent1)
         pivot_sentence = sent_tokenize(pivot_sentence)[0]
         # print(pivot_sentence)
-        isSent = pivot_sentence != '' and any([pivot_sentence[-1] == punct for punct in sentence_ending]) and len(
-            pivot_sentence.split()) > 10 and 'www.' not in pivot_sentence
+        isSent = isSentence(pivot_sentence)
     isSent = False
     pivot_sentence = pivot_sentence.replace('\n', '')
     # 3. Generate text after pivot using domain 2 (GPT-2)
@@ -152,8 +151,7 @@ def idea1(context1, context2, run_cnt, fill_backwards1=True, fill_backwards2=Fal
             context_sent2 = ' '.join(sent_tokenize(context_sent2)[0:2])
         else:
             context_sent2 = sent_tokenize(context_sent2)[0]
-        isSent = context_sent2 != '' and any([context_sent2[-1] == punct for punct in sentence_ending]) and len(
-            context_sent2.split()) > 15 and 'www.' not in context_sent2
+        isSent = isSentence(context_sent2)
     context_sent2 = context_sent2.replace('\n', '')
     # 4. Use XLNet to fill in the sentence with different masks to go between domain 1 and domain 2
     # TODO Try different mask lengths and choose the "best" one
@@ -185,7 +183,7 @@ def idea1(context1, context2, run_cnt, fill_backwards1=True, fill_backwards2=Fal
             print('\nout_sent: {}\n'.format(out_sent))
             f.write('out_sent: {}\n'.format(out_sent))
             masked_part = first_half + masked_out1
-            score = score_sentence2(context_sent1, pivot_sentence, masked_part, context_sent2)
+            score = score_sentence_lm_scoring(context_sent1, pivot_sentence, masked_part, context_sent2)
 
         elif split_two:
             before = context_sent1 + pivot_sentence + ' <mask> ' * i + context_sent2
@@ -211,7 +209,7 @@ def idea1(context1, context2, run_cnt, fill_backwards1=True, fill_backwards2=Fal
             out_sent = out2
             # res = client.check(masked_out2)
             # score = -1.0*len(res.matches)*0.3 + i*0.7
-            score = score_sentence2(context_sent1, pivot_sentence, masked_out2, context_sent2)
+            score = score_sentence_lm_scoring(context_sent1, pivot_sentence, masked_out2, context_sent2)
             # f.write('score\n\n: {}'.format(len(res.matches)))
         else:
             orig_sent1 = context_sent1 + pivot_sentence + ' <mask> ' * i + context_sent2
@@ -222,7 +220,7 @@ def idea1(context1, context2, run_cnt, fill_backwards1=True, fill_backwards2=Fal
             out_sent, masked_out = xl_net_fill_middle(orig_sent1, fill_backwards=fill_backwards1)
             print('\nout_sent2: {}\n'.format(out_sent))
             f.write('out_sent2: {}\n'.format(out_sent))
-            score = score_sentence2(context_sent1, pivot_sentence, masked_out, context_sent2)
+            score = score_sentence_lm_scoring(context_sent1, pivot_sentence, masked_out, context_sent2)
 
         if score > best_val or i == start:
             best_sent = out_sent
@@ -254,6 +252,29 @@ def score_grammar(sentence):
     score = len(res.matches)
     return score
 
+def score_sentence_lm_scoring(context_sent1, pivot_sentence, masked_sentence, context_sent2):
+    sent1 = get_sentiment(context_sent1)
+    pivot = get_sentiment(pivot_sentence)
+    masked_sent = get_sentiment(masked_sentence)
+    sent2 = get_sentiment(context_sent2)
+    len_ex = sum([len(text.split()) for text in [context_sent1, pivot_sentence, masked_sentence, context_sent2]])
+    score = 0
+    sentiment_difference1 = sent2 - masked_sent
+    sentiment_difference2 = masked_sent - pivot
+    if sentiment_difference1 < 0.0 and sent2 >= 0.0:
+        sentiment_difference1 = 0.0 
+    if sentiment_difference2 < 0.0 and masked_sent >= 0.0:
+        sentiment_difference2 = 0.0
+    # need to figure out a score with sentiment
+    # if (masked_sent > 0 and sent2 < 0) or (sent2 > 0 and masked_sent < 0):
+    #    score += 1
+    # if (pivot > 0 and sent2 < 0) or (sent2 > 0 and pivot < 0):
+    #    score += 1
+    grammar_score = sum([lm_scoring(text) for text in [context_sent1, pivot_sentence, masked_sentence, context_sent2]])/4.0
+    #grammar_score = score_sentence1(context_sent1, pivot_sentence, masked_sentence, context_sent2) / len_ex
+    score = (sentiment_difference1 + sentiment_difference2 - grammar_score) / 4 
+    return score
+
 
 def score_sentence2(context_sent1, pivot_sentence, masked_sentence, context_sent2):
     sent1 = get_sentiment(context_sent1)
@@ -281,9 +302,14 @@ def score_sentence2(context_sent1, pivot_sentence, masked_sentence, context_sent
 
 def isSentence(sentence, at_least_length=10):
     has_word = len(sentence.split()) > 0
+    sentence = sentence.strip()
     return has_word and sentence != '' and any([sentence[-1] == punct for punct in sentence_ending]) and len(
         sentence.split()) > at_least_length and 'www.' not in sentence and 'http' not in sentence
 
+
+def isSentenceBeginning(sb, at_least_length=3):
+    sb = sb.strip()
+    return all([sb[-1] != punct for punct in sentence_ending]) and len(sb.split()) > at_least_length
 
 # TODO Idea 2:
 # 1. Find a word with multiple senses (word)
@@ -298,8 +324,9 @@ def idea2(context1, context2, word='', related_word='', word2='', run_cnt=0, sen
         print('word: {}'.format(word))
     # Generate a throw away word to start out the XLNet
     isSent = False
-    f = open('idea2_samples/idea2_{}_{}_{}_{}_{}_{}.txt'.format(run_cnt, context1, context2, word, related_word, word2),
+    f = open('idea2_samples/lm_scoring/idea2_{}_len_{}_{}_{}_{}_{}_{}.txt'.format(run_cnt, sentence_len, context1, context2, word, related_word, word2),
              'w', encoding='utf-8')
+    f.write('word: {}\nrelated_word: {}\nword2:{}\n'.format(word, related_word, word2))
     while not isSent:
         context_sent1_throw = sample_model(model_name='117M',
                                            run_name=context1,
@@ -313,6 +340,7 @@ def idea2(context1, context2, word='', related_word='', word2='', run_cnt=0, sen
         context_sent1_throw = sent_tokenize(context_sent1_throw)
         context_sent1_throw = ' '.join(context_sent1_throw[:-1])
         isSent = isSentence(context_sent1_throw)
+
     print('context_sent1_throw: {}'.format(context_sent1_throw))
     f.write('context_sent1_throw: {}\n'.format(context_sent1_throw))
     # 2. Generate sentence from domain 1 (GPT-2) that uses that word
@@ -441,7 +469,7 @@ def idea2(context1, context2, word='', related_word='', word2='', run_cnt=0, sen
     # else:
     f.write(context_sent1 + ' ' + context_sent2 + ' ' + context_sent3)
     f.close()
-    return context_sent1 + ' ' + context_sent3
+    return context_sent1 + ' ' + context_setn2 + ' ' + context_sent3
 
 
 # 1. Find a word with multiple senses (word)
@@ -576,7 +604,7 @@ def idea2_modified(context1, context2, word='', run_cnt=0, sentence_len=40, use_
                 use_fifty_one=False,
                 use_vanilla=False,
                 debug=False,
-                raw_text=context_sent1)
+                raw_text=context2_input)
             context_sent2 = sent_tokenize(seed_text2 + context_sent2)
             context_sent2 = ' '.join(context_sent2[:-1])
             isSent = isSentence(context_sent2)
@@ -792,6 +820,11 @@ def xl_net_fill_middle(orig_sent, topk=10, fill_backwards=False):
     masked_out = ' '.join(masked_out)
     return orig_sent, masked_out
 
+def lm_scoring(sentence):
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    scorer = LMScorer.from_pretrained("gpt2", device=device)
+    score = scorer.sentence_score(sentence, reduce="gmean")
+    return score
 
 def xl_net_fill_begining(context_sent_throw, word, start=1, end=6, k=5, avoid=None):
     tokenizer = XLNetTokenizer.from_pretrained('xlnet-large-cased')
@@ -831,7 +864,7 @@ def xl_net_fill_begining(context_sent_throw, word, start=1, end=6, k=5, avoid=No
                 while not found and found_ix < k - 1:
                     pw = word_list[found_ix]
                     if pw not in avoid and replacements[i] - 1 > 0 and replacements[i] - 1 < len(out_sent) and out_sent[
-                        replacements[i] - 1].lower() != pw:
+                        replacements[i] - 1].lower() != pw.lower():
                         found = True
                     elif replacements[i] == 0 and pw not in avoid:
                         found = True
@@ -844,14 +877,14 @@ def xl_net_fill_begining(context_sent_throw, word, start=1, end=6, k=5, avoid=No
         first_last = orig_sent.split(last_word)
         output.append(first_last)
 
-    best_sent = output[0][-1]
-    best_score = score_grammar(output[0][1])
+    best_sent = None
+    best_score = None
     for i, first_last in enumerate(output):
         # print('mask num: {}'.format(start + i))
         # for text in first_last:
         #    print('\nOut Sent: {}\n'.format(text))
-        score = score_grammar(first_last[1])
-        if score < best_score and all([punct not in first_last[1] for punct in sentence_ending]):
+        score = lm_scoring(first_last[1])
+        if best_score is None or (score > best_score and all([punct not in first_last[1] for punct in sentence_ending]) and isSentenceBeginning(first_last[1])):
             best_sent = first_last[1]
             best_score = score
     return best_sent
@@ -866,24 +899,24 @@ def main_idea1():
 
 
 def main_idea2():
-    pairs = [('strength_training2', 'cookingforbeginners2', 'lifted', 'lifted', 'stack'),
-             ('gifted2', 'gift_ideas2', 'gifted', 'gifted', 'child'), ('dnd_bios2', 'gift_ideas2', 'elf', 'elf', 'bow')]
-    for pair in pairs:
-        for run in range(3):
-            out = idea2(pair[0], pair[1], word=pair[2], related_word=pair[3], word2=pair[4], run_cnt=run,
-                        sentence_len=30)
-            print('\n\n\n' + out)
+   pairs = [('strength_training2', 'cookingforbeginners2', 'roll', 'roll', 'butter'),
+             ('gifted2', 'gift_ideas2', 'gifted', 'gifted', 'child')]#, ('dnd_bios2', 'gift_ideas2', 'elf', 'elf', 'bow'), ('strength_training2', 'cookingforbeginners2', 'twist', 'twist', 'candy'), ('strength_training2', 'cookingforbeginners2', 'roll', 'roll', 'butter'), ('strength_training2', 'cookingforbeginners2', 'beat', 'beat', 'eggs'), ('strength_training2', 'cookingforbeginners2', 'press', 'press', 'tomato')]
+   for pair in pairs:
+       for run in range(3):
+           out = idea2(pair[0], pair[1], word=pair[2], related_word=pair[3], word2=pair[4], run_cnt=run, sentence_len=60)
+           print('\n\n\n' + out)
 
 
 def main_idea2_modified():
-    # pairs = [('strength_training2', 'cookingforbeginners2', 'lifted'), ('strength_training2', 'cookingforbeginners2', 'stack'), ('gifted2', 'gift_ideas2', 'gifted'), ('dnd_bios2', 'gift_ideas2', 'elf'), ('dnd_bios2', 'gift_ideas2', 'bow'), ('strength_training2', 'cookingforbeginners2', 'leg')]
-    pairs = [('gifted2', 'gift_ideas2', 'gifted')]
+    #pairs = [('strength_training2', 'cookingforbeginners2', 'lifted'), ('strength_training2', 'cookingforbeginners2', 'stack'), ('gifted2', 'gift_ideas2', 'gifted'), ('dnd_bios2', 'gift_ideas2', 'elf'), ('dnd_bios2', 'gift_ideas2', 'bow'), ('strength_training2', 'cookingforbeginners2', 'leg')]
+    #pairs = [('gifted2', 'gift_ideas2', 'gifted')]
+    pairs = [('strength_training2', 'cookingforbeginners2', 'twist'), ('strength_training2', 'cookingforbeginners2', 'roll'), ('strength_training2', 'cookingforbeginners2', 'beat'), ('strength_training2', 'cookingforbeginners2', 'press')]
     for pair in pairs:
         for run in range(4):
             out = idea2_modified(pair[0], pair[1], pair[2], sentence_len=30, run_cnt=run, use_leading=False,
-                                 use_combo=True)
+                                 use_combo=False)
             print('\n\n\n' + out)
 
 
 if __name__ == '__main__':
-    main_idea2_modified()
+    main_idea2()
