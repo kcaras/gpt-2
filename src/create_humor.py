@@ -316,7 +316,7 @@ def isSentenceBeginning(sb, at_least_length=3):
 # 2. Generate sentence from domain 1 (GPT-2) that uses that word
 # 3. Find another word from domain 2 that is related to the word (related_word)
 # 4. Generate sentence using that related word.
-def idea2(context1, context2, word='', related_word='', word2='', run_cnt=0, sentence_len=30, two_words=True):
+def idea2(context1, context2, word='', related_word='', word2='', run_cnt=0, sentence_len=30, two_words=True, remove_middle=False):
     # 1. Find a word with multiple senses
     if word == '':
         word = 'gifted'
@@ -324,9 +324,13 @@ def idea2(context1, context2, word='', related_word='', word2='', run_cnt=0, sen
         print('word: {}'.format(word))
     # Generate a throw away word to start out the XLNet
     isSent = False
-    if two_words:
-        f = open('idea2_samples/lm_scoring/two_words/idea2_{}_len_{}_{}_{}_{}_{}_{}.txt'.format(run_cnt, sentence_len, context1, context2, word, related_word, word2),
+    if two_words and remove_middle:
+        f = open('idea2_samples/lm_scoring/two_words/remove_middle/idea2_{}_len_{}_{}_{}_{}_{}_{}.txt'.format(run_cnt, sentence_len, context1, context2, word, related_word, word2),
              'w', encoding='utf-8')
+    elif two_words:
+        f = open('idea2_samples/lm_scoring/two_words/idea2_{}_len_{}_{}_{}_{}_{}_{}.txt'.format(run_cnt, sentence_len, context1, context2, word, related_word, word2),'w', encoding='utf-8')
+    elif remove_middle:
+        f = open('idea2_samples/lm_scoring/remove_middle_only/idea2_{}_len_{}_{}_{}_{}_{}_{}.txt'.format(run_cnt, sentence_len, context1, context2, word, related_word, word2),'w', encoding='utf-8')
     else:
         f = open('idea2_samples/lm_scoring/idea2_{}_len_{}_{}_{}_{}_{}_{}.txt'.format(run_cnt, sentence_len, context1, context2, word, related_word, word2),
              'w', encoding='utf-8')
@@ -432,12 +436,16 @@ def idea2(context1, context2, word='', related_word='', word2='', run_cnt=0, sen
         isSent = isSentence(context_sent2_throw2)
     print('context_sent2_throw2: {}'.format(context_sent2_throw2))
     if two_words:
-        seed_text3 = xl_net_fill_begining_two_words(context_sent2_throw2, related_word, word2, start=1, end=6, k=5, avoid=avoid_xlnet_idea2
+        seed_text3 = xl_net_fill_begining_two_words(context_sent2_throw2, related_word, word2, start=1, end=6, k=5, avoid=avoid_xlnet_idea2)
     else:   
         seed_text3 = xl_net_fill_begining(context_sent2_throw2, word2, start=1, end=6, k=5, avoid=avoid_xlnet_idea2)
     print('seed_text3: {}'.format(seed_text3))
     # seed_text3 = 'This {}'.format(word2)
     isSent = False
+    if remove_middle:
+        context_sent3_input = context_sent1 + ' ' + seed_text3
+    else:
+        context_sent3_input = context_sent1 + ' ' + context_sent2 + ' ' + seed_text3
     while not isSent:
         context_sent3 = sample_model_with_seed(model_name='117M',
                                                run_name=context2,
@@ -448,7 +456,7 @@ def idea2(context1, context2, word='', related_word='', word2='', run_cnt=0, sen
                                                temperature=1,
                                                top_k=50,
                                                top_p=0.0,
-                                               raw_text=context_sent1 + ' ' + context_sent2 + ' ' + seed_text3)
+                                               raw_text=context_sent3_input)
         context_sent3 = sent_tokenize(seed_text3 + context_sent3)
         context_sent3 = ' '.join(context_sent3[:-1])
         isSent = isSentence(context_sent3)
@@ -456,6 +464,8 @@ def idea2(context1, context2, word='', related_word='', word2='', run_cnt=0, sen
     print('\n\n')
     print('seed_text1: {}'.format(seed_text1))
     print('context_sent1: {}'.format(context_sent1))
+    if remove_middle:
+        print('***REMOVED Context Sent2')
     print('seed_text2: {}'.format(seed_text2))
     print('context_sent2: {}'.format(context_sent2))
     print('seed_text3: {}'.format(seed_text3))
@@ -464,8 +474,11 @@ def idea2(context1, context2, word='', related_word='', word2='', run_cnt=0, sen
     f.write('\n\n')
     f.write('seed_text1: {}\n'.format(seed_text1))
     f.write('context_sent1: {}\n'.format(context_sent1))
+    if remove_middle:
+        f.write('***Did not use Context Sent2***\n')
     f.write('seed_text2: {}\n'.format(seed_text2))
     f.write('context_sent2: {}\n'.format(context_sent2))
+    f.write('\n\n')
     f.write('seed_text3: {}\n'.format(seed_text3))
     f.write('context_sent3: {}\n'.format(context_sent3))
     f.write('\n\n\n')
@@ -474,9 +487,15 @@ def idea2(context1, context2, word='', related_word='', word2='', run_cnt=0, sen
     #    f.close()
     #    return context_sent1 + ' ' + context_sent3
     # else:
-    f.write(context_sent1 + ' ' + context_sent2 + ' ' + context_sent3)
+    if remove_middle:
+        f.write(context_sent1 + ' ' + context_sent3)
+    else:
+        f.write(context_sent1 + ' ' + context_sent2 + ' ' + context_sent3)
     f.close()
-    return context_sent1 + ' ' + context_sent2 + ' ' + context_sent3
+    if remove_middle:
+        return context_sent1 + ' ' + context_sent3
+    else:
+        return context_sent1 + ' ' + context_sent2 + ' ' + context_sent3
 
 
 # 1. Find a word with multiple senses (word)
@@ -727,14 +746,23 @@ def xl_net_fill_begining_two_words(context_sent_throw, word1, word2, start=1, en
         # for text in first_last:
         #    print('\nOut Sent: {}\n'.format(text))
         score = lm_scoring(first_last[1])
-        word_appears_once = sum([w.lower() == word for w in first_last[1].split()]) == 1
+        word_appears_once1 = sum([w.lower() == word1 for w in first_last[1].split()]) == 1
+        word_appears_once2 = sum([w.lower() == word2 for w in first_last[1].split()]) == 1
         if best_score is None:
-            if word_appears_once and isSentenceBeginning(first_last[1]):
+            if word_appears_once1 and word_appears_once2 and isSentenceBeginning(first_last[1]):
                 best_sent = first_last[1]
                 best_score = score
-        elif word_appears_once and score > best_score and all([punct not in first_last[1] for punct in sentence_ending]) and isSentenceBeginning(first_last[1]):
+        elif word_appears_once1 and word_appears_once2 and score > best_score and all([punct not in first_last[1] for punct in sentence_ending]) and isSentenceBeginning(first_last[1]):
             best_sent = first_last[1]
             best_score = score
+    if best_sent is None:
+        best_sent = output[0][1]
+        best_score = lm_scoring(output[0][1])
+        for i, first_last in enumerate(output):
+            score = lm_scoring(first_last[1])
+            if score > best_score and all([punct not in first_last[1] for punct in sentence_ending]) and isSentenceBeginning(first_last[1]):
+                best_sent = first_last[1]
+                best_score = score
     return best_sent
 
 
@@ -980,6 +1008,14 @@ def xl_net_fill_begining(context_sent_throw, word, start=1, end=6, k=5, avoid=No
         elif word_appears_once and score > best_score and all([punct not in first_last[1] for punct in sentence_ending]) and isSentenceBeginning(first_last[1]):
             best_sent = first_last[1]
             best_score = score
+    if best_sent is None:
+        best_sent = output[0][1]
+        best_score = lm_scoring(output[0][1])
+        for i, first_last in enumerate(output):
+            score = lm_scoring(first_last[1])
+            if score > best_score and all([punct not in first_last[1] for punct in sentence_ending]) and isSentenceBeginning(first_last[1]):
+                best_sent = first_last[1]
+                best_score = score
     return best_sent
 
 
@@ -992,12 +1028,14 @@ def main_idea1():
 
 
 def main_idea2():
-   pairs = [('strength_training2', 'cookingforbeginners2', 'roll', 'roll', 'butter'),
-             ('gifted2', 'gift_ideas2', 'gifted', 'gifted', 'child')]#, ('dnd_bios2', 'gift_ideas2', 'elf', 'elf', 'bow'), ('strength_training2', 'cookingforbeginners2', 'twist', 'twist', 'candy'), ('strength_training2', 'cookingforbeginners2', 'roll', 'roll', 'butter'), ('strength_training2', 'cookingforbeginners2', 'beat', 'beat', 'eggs'), ('strength_training2', 'cookingforbeginners2', 'press', 'press', 'tomato')]
-   for pair in pairs:
-       for run in range(3):
-           out = idea2(pair[0], pair[1], word=pair[2], related_word=pair[3], word2=pair[4], run_cnt=run, sentence_len=30, two_words=True)
-           print('\n\n\n' + out)
+    pairs =[('dnd_bios2', 'gift_ideas2', 'elf', 'elf', 'Santa')]
+    #pairs = [('strength_training2', 'cookingforbeginners2', 'beat', 'beat', 'eggs'), ('cornell_supreme', 'scifi', 'alien', 'alien', 'spaceship')]
+    #pairs = [('strength_training2', 'cookingforbeginners2', 'roll', 'roll', 'butter'),('strength_training2', 'cookingforbeginners2', 'lift', 'lift', 'cupcake'), ('gifted2', 'gift_ideas2', 'gifted', 'gifted', 'child')]#, ('dnd_bios2', 'gift_ideas2', 'elf', 'elf', 'bow'), ('strength_training2', 'cookingforbeginners2', 'twist', 'twist', 'candy'), ('strength_training2', 'cookingforbeginners2', 'roll', 'roll', 'butter'), ('strength_training2', 'cookingforbeginners2', 'beat', 'beat', 'eggs'), ('strength_training2', 'cookingforbeginners2', 'press', 'press', 'tomato')]
+    for pair in pairs:
+        for run in range(3):
+           for length in [30, 60]:
+               out = idea2(pair[0], pair[1], word=pair[2], related_word=pair[3], word2=pair[4], run_cnt=run, sentence_len=length, two_words=True, remove_middle=True)
+               print('\n\n\n' + out)
 
 
 def main_idea2_modified():
