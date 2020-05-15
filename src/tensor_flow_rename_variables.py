@@ -37,43 +37,12 @@ def rename(checkpoint_dir, replace_from, replace_to, add_prefix, dry_run):
 
 
 def main():
-    #brown_romance/h0/attn/c_attn/b
-    run_name1 = 'cornell_supreme'
-    run_name2 = 'scifi'
-    checkpoint_dir = '/media/twister/04dc1255-e775-4227-9673-cea8d37872c7/humor_gen/caras_humor/gpt-2/checkpoint/{}'.format(run_name1)
-    replace_from = 'cornell_supreme/'
-    replace_to = 'model/'#.format(run_name1)
+    run_name = 'strength_training2'
+    checkpoint_dir = 'checkpoint/{}'.format(run_name)
+    replace_from = 'model/'
+    replace_to = '{}/'.format(run_name)
     add_prefix = None
-    #cornell_supreme/h0/attn/c_attn/b
-    #add_prefix = '{}/'.format(run_name)
     dry_run = False
-
-    # try:
-    #     opts, args = getopt.getopt(argv, 'h', ['help=', 'checkpoint_dir=', 'replace_from=',
-    #                                            'replace_to=', 'add_prefix=', 'dry_run'])
-    # except getopt.GetoptError:
-    #     print(usage_str)
-    #     sys.exit(2)
-    # for opt, arg in opts:
-    #     if opt in ('-h', '--help'):
-    #         print(usage_str)
-    #         sys.exit()
-    #     elif opt == '--checkpoint_dir':
-    #         checkpoint_dir = arg
-    #     elif opt == '--replace_from':
-    #         replace_from = arg
-    #     elif opt == '--replace_to':
-    #         replace_to = arg
-    #     elif opt == '--add_prefix':
-    #         add_prefix = arg
-    #     elif opt == '--dry_run':
-    #         dry_run = True
-    #
-    # if not checkpoint_dir:
-    #     print('Please specify a checkpoint_dir. Usage:')
-    #     print(usage_str)
-    #     sys.exit(2)
-
     rename(checkpoint_dir, replace_from, replace_to, add_prefix, dry_run)
 
 
