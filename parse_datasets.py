@@ -32,11 +32,11 @@ def combine(data1, data2):
 
 
 def parse_urban_dictionary():
-    path = '/media/twister/04dc1255-e775-4227-9673-cea8d37872c7/humor_gen/caras_wang/Data/words.json'
+    path = 'words.json'
     jf = open(path, 'r', encoding='utf-8')
     #words = json.load(jf)
     #jf.close()
-    outf_path = '/media/twister/04dc1255-e775-4227-9673-cea8d37872c7/humor_gen/caras_wang/Data/urban_dictionary.txt'
+    outf_path = 'urban_dictionary.txt'
     outf = open(outf_path, 'w', encoding='utf-8')
     for line in jf:
         words = json.loads(line)
@@ -45,25 +45,6 @@ def parse_urban_dictionary():
     outf.close()
     jf.close()
 
-
-def create_change_var():
-    f = open('/media/twister/04dc1255-e775-4227-9673-cea8d37872c7/humor_gen/caras_humor/gpt-2/trained_vars.txt', 'r', encoding='utf-8')
-    lines = f.readlines()
-    f.close()
-    new_f = open('trained_vars_scopes.txt', 'w', encoding='utf-8')
-    for line in lines:
-        split = line.split(' ')
-        if '*' not in line:
-            #'\\'{}/wpe:0\\''
-            var_scope = split[1].replace('\'', '').replace(':0', '')
-            i = 3
-            var_shape = split[2]
-            while 'dtype' not in split[i]:
-                var_shape += split[i]
-                i += 1
-            var_shape = var_shape.replace('shape=', '')
-            new_f.write(var_scope + ' ' + var_shape + '\n')
-    new_f.close()
 
 def produce_brown_files():
     cats = ['romance', 'humor', 'government']
@@ -156,16 +137,3 @@ def clean_reddit_jokes():
     f_new.write(new_lines)
     f_new.close()
 
-if __name__ == '__main__':
-    #produce_brown_files()
-    #read_movies()
-    #combine_files('gpt-2/supreme.txt', 'gpt-2/brown_romance.txt')
-    # import gpt_2_simple as gpt2
-    #
-    # model_name = "355M"
-    # gpt2.download_gpt2(model_name=model_name)   # model is saved into current directory under /models/117M_Romance_Supreme/
-    #clean_reddit_jokes()
-    #produce_shakespere()
-    #combine('supreme', 'scifi_sentences')
-    #parse_urban_dictionary()
-    read_dnd()

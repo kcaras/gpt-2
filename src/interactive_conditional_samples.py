@@ -14,13 +14,13 @@ from generate_unconditional_samples import print_logits_of_example
 punctuation = [',', '-', '.', '!', ';', '?']
 def interact_model(
     model_name='117M',
-    run_name='reddit_jokes',
+    run_name='urban_dictionary',
     seed=None,
-    nsamples=3,
+    nsamples=4,
     batch_size=1,
-    length=20,
+    length=60,
     temperature=1,
-    top_k=0,
+    top_k=40,
     top_p=0.0
 ):
     """
@@ -94,9 +94,9 @@ def interact_model(
 
 def print_combined_sentences(
     model_name='117M',
-    run_name1='scifi',
-    run_name2='cornell_supreme',
-    fun_name='reddit_jokes',
+    run_name1='gift_ideas2',
+    run_name2='gifted2',
+    fun_name='urban_dictionary',
     seed=None,
     nsamples=1,
     batch_size=1,
@@ -106,15 +106,15 @@ def print_combined_sentences(
     top_k_combined=0.0,
     top_p=0.0,
     weight1=0.4,
-    weight2=0.4,
+    weight2=0.3,
     use_random=False,
     use_swap=True,
     logits_used=0,
-    ex_num='just_reddit_added',
+    ex_num='combined_swap_funny',
     display_logits=True,
-    repeat=7,
+    repeat=4,
     use_diverge=False,
-    converge_after=3,
+    converge_after=1,
     use_funny=True,
 ):
     """
@@ -152,7 +152,7 @@ def print_combined_sentences(
     #     loss = model(tensor_input, lm_labels=tensor_input)
     #     return -loss[0] * len(tokenize_input)
     raw_text = ''
-    log_dir = '/media/twister/04dc1255-e775-4227-9673-cea8d37872c7/humor_gen/caras_humor/logs'
+    log_dir = ''
     losses0 = []
     losses1 = []
     losses2 = []
@@ -295,22 +295,22 @@ def print_combined_sentences(
     print('Converge Count = {}'.format(converge_count))
     losses_dict = {run_name1:losses1, run_name2:losses2, 'combined':losses0}
     if use_funny:
-        text_file = '/home/twister/Dropbox (GaTech)/caras_graphs/{}_{}_{}_{}_{}_{}_{}.txt'.format(ex_num, repeat,
+        text_file = 'logs/graphs/{}_{}_{}_{}_{}_{}_{}.txt'.format(ex_num, repeat,
                                                                                                   fun_name,
                                                                                                   run_name1, run_name2,
                                                                                                   weight1, weight2)
     elif top_k_combined > 0:
-        text_file = '/home/twister/Dropbox (GaTech)/caras_graphs/{}_{}_{}_{}_{}_{}_{}.txt'.format(ex_num, repeat,
+        text_file = 'logs/graphs/{}_{}_{}_{}_{}_{}_{}.txt'.format(ex_num, repeat,
                                                                                                   'k_combined',
                                                                                                   run_name1, run_name2,
                                                                                                   weight1, weight2)
     elif use_swap:
-        text_file = '/home/twister/Dropbox (GaTech)/caras_graphs/{}_{}_{}_{}_{}_{}_{}.txt'.format(ex_num, repeat,
+        text_file = 'logs/graphs/{}_{}_{}_{}_{}_{}_{}.txt'.format(ex_num, repeat,
                                                                                                   'swap',
                                                                                                   run_name1, run_name2,
                                                                                                   weight1, weight2)
     else:
-        text_file = '/home/twister/Dropbox (GaTech)/caras_graphs/{}_{}_{}_{}_{}_{}_{}.txt'.format(ex_num, repeat, logits_used, run_name1, run_name2, weight1, weight2)
+        text_file = 'logs/graphs/{}_{}_{}_{}_{}_{}_{}.txt'.format(ex_num, repeat, logits_used, run_name1, run_name2, weight1, weight2)
 
     tfile = open(text_file, 'w', encoding='utf-8')
     all_text = [txt.replace('\n', '').replace('<|endoftext|>', '') for txt in all_text]
@@ -349,28 +349,20 @@ def print_combined_sentences(
             use_swap=False,
             raw_text=' '.join(all_text)
         )
-    # if top_k_combined > 0:
-    #     create_graphs.create_sentence_chart(losses_dict, ex_num, run_name1, run_name2, 'combined_k', repeat, weight1,
-    #                                         weight2, display_combined=display_combined)
-    # elif use_swap:
-    #     create_graphs.create_sentence_chart(losses_dict, ex_num, run_name1, run_name2, 'swap', repeat, weight1, weight2, display_combined=display_combined)
-    # else:
-    #     create_graphs.create_sentence_chart(losses_dict, ex_num, run_name1, run_name2, logits_used, repeat, weight1, weight2, display_combined=display_combined)
-
 
 def interact_combined_model(
         model_name='117M',
-        run_name1='brown_romance',
-        run_name2='scifi',
+        run_name1='strength_training2',
+        run_name2='cookingforbeginners2',
         seed=None,
         nsamples=3,
         batch_size=1,
-        length=300,
-        temperature=1.2,
-        top_k=50,
+        length=20,
+        temperature=1,
+        top_k=40,
         top_p=0.0,
-        weight1=0.5,
-        weight2=0.5,
+        weight1=0.7,
+        weight2=0.3,
         use_random=False,
         use_swap=False,
         use_f1=False
@@ -474,4 +466,4 @@ def clean_string(txt):
 
 
 if __name__ == '__main__':
-    fire.Fire(print_combined_sentences)
+    fire.Fire(interact_model)

@@ -4,8 +4,8 @@ import model, sample, encoder
 import json
 import math
 
-markers = ['s', '.', 'D', 'o', 'v', '*', '+', 'x' '<', '>', '8']
-
+markers = ['s', '.', 'D', 'o', 'v', '*', '+lologt', 'x' '<', '>', '8']
+log_dir_sentence_chart = ''
 
 def create_sentence_chart(loss_dict, ex_num, run_name1, run_name2, logits_used, repeat, weight1, weight2, display_combined=True):
     combined = 'combined'
@@ -21,7 +21,7 @@ def create_sentence_chart(loss_dict, ex_num, run_name1, run_name2, logits_used, 
 
     plt.legend()
     plt.savefig(
-        '/home/twister/Dropbox (GaTech)/caras_graphs/{}_{}_{}_{}_{}_{}_{}.png'.format(ex_num, repeat, logits_used, run_name1, run_name2, weight1, weight2))
+        '{}/{}_{}_{}_{}_{}_{}_{}.png'.format(log_dir_sentence_chart, ex_num, repeat, logits_used, run_name1, run_name2, weight1, weight2))
     #plt.show()
     #plt.clf()
 
@@ -36,7 +36,7 @@ def create_sentence_chart_not_gen(loss_dict, ex_num, run_names, repeat):
 
     plt.legend()
     plt.savefig(
-        '/home/twister/Dropbox (GaTech)/caras_graphs/{}_{}_{}.png'.format(ex_num, repeat, '{}'.format('_'.join(run_names))))
+        '{}_{}_{}.png'.format(ex_num, repeat, '{}'.format('_'.join(run_names))))
     #plt.show()
     #plt.clf()
 
@@ -128,7 +128,7 @@ def create_word_chart(model_name, run_name1, run_name2, log_dir, ex_num, logits_
         plt.plot(syms, probs3, label='combined', marker=markers[2])
 
     plt.legend()
-    plt.savefig('/home/twister/Dropbox (GaTech)/caras_graphs/{}_{}_{}_{}.png'.format(ex_num, logits_used, run_name1, run_name2))
+    plt.savefig('{}_{}_{}_{}.png'.format(ex_num, logits_used, run_name1, run_name2))
     #plt.show()
     plt.clf()
 
@@ -156,7 +156,7 @@ def create_word_chart_many_sents(model_name, run_name1, run_name2, ex_num, logit
             plt.plot(syms, logits_dict[cnt]['logits0'], label='combined', marker=markers[2])
 
         plt.legend()
-        plt.savefig('/home/twister/Dropbox (GaTech)/caras_graphs/{}_sent_{}_{}_{}_{}.png'.format(ex_num, cnt, logits_used, run_name1, run_name2))
+        plt.savefig('{}/{}_sent_{}_{}_{}_{}.png'.format(log_dir_sentence_chart,ex_num, cnt, logits_used, run_name1, run_name2))
         #plt.show()
         plt.clf()
 
@@ -164,7 +164,7 @@ if __name__ == '__main__':
     model_name = '117M'
     run_name1 = 'scifi'
     run_name2 = 'cornell_supreme'
-    log_dir = '/media/twister/04dc1255-e775-4227-9673-cea8d37872c7/humor_gen/caras_humor/logs'
+    log_dir = ''
     ex_num = 'ex_combined'
     logits_used = 1
     create_word_chart(model_name, run_name1 , run_name2, log_dir, ex_num, logits_used, display_combined=True)
